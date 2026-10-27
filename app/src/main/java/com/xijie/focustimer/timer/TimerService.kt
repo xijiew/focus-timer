@@ -102,7 +102,7 @@ class TimerService : Service() {
         startAsForeground(running)
         scheduleChime(running.startWall + minutes * 60_000L, p.name)
         startTicker()
-        TimerWidgetProvider.notifyChanged(this)
+        refreshWidgets()
     }
 
     /** 暂停：把当前这一段累加进去，时间停住，闹钟取消 */
@@ -117,7 +117,7 @@ class TimerService : Service() {
             Notifier.updateOngoing(this, nr, e, nr.chimeFired)
         } catch (t: Throwable) {
         }
-        TimerWidgetProvider.notifyChanged(this)
+        refreshWidgets()
     }
 
     /** 继续：重新开始走秒，并按剩余时间重排到点闹钟 */
@@ -136,7 +136,7 @@ class TimerService : Service() {
             Notifier.updateOngoing(this, nr, elapsed, nr.chimeFired)
         } catch (t: Throwable) {
         }
-        TimerWidgetProvider.notifyChanged(this)
+        refreshWidgets()
     }
 
     private fun startAsForeground(r: Repo.Running) {
@@ -146,6 +146,18 @@ class TimerService : Service() {
             ServiceCompat.startForeground(this, Notifier.ONGOING_ID, n, type)
         } catch (t: Throwable) {
             // 通知权限缺失等情况下仍然继续计时
+        }
+    }
+
+    /** 状态变化后立刻刷一次，并在 700ms 后再刷一次，压掉乱序/过期刷新造成的按钮错位 */
+    private fun refreshWidgets() {
+        TimerWidgetProvider.updateAll(this)
+        try {
+            scope.launch {
+                delay(700L)
+                TimerWidgetProvider.updateAll(this@TimerService)
+            }
+        } catch (t: Throwable) {
         }
     }
 
@@ -194,7 +206,7 @@ class TimerService : Service() {
             Notifier.checkThresholds(this, r.projectId)
         }
         ticker?.cancel()
-        TimerWidgetProvider.notifyChanged(this)
+        refreshWidgets()
         try {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         } catch (t: Throwable) {

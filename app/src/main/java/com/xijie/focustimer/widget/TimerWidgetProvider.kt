@@ -143,7 +143,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_timer)
 
         // ---- 尺寸 & 深色模式 ----
-        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 40f else 22f)
+        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 32f else 18f)
         views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 13f else 12f)
         views.setTextViewTextSize(R.id.widget_sub, TypedValue.COMPLEX_UNIT_SP, if (large) 11f else 10f)
         views.setViewPadding(
@@ -223,6 +223,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             val m = minutesFor(context, widgetId, p)
             views.setTextViewText(R.id.widget_time, if (showButtons) "00:00" else m.toString() + " 分")
             views.setTextViewText(R.id.widget_sub, "计划 " + m + " 分")
+            views.setViewVisibility(R.id.widget_stop, View.GONE)
             setAction(views, R.drawable.ic_play, PILL_RES[colorIdx])
         }
 

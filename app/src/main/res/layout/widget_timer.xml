@@ -72,7 +72,7 @@
         <LinearLayout
             android:id="@+id/widget_action"
             android:layout_width="0dp"
-            android:layout_height="46dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:background="@drawable/pill_p0"
             android:gravity="center"
@@ -80,8 +80,8 @@
 
             <ImageView
                 android:id="@+id/widget_action_icon"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_play" />
         </LinearLayout>
@@ -89,7 +89,7 @@
         <LinearLayout
             android:id="@+id/widget_stop"
             android:layout_width="0dp"
-            android:layout_height="46dp"
+            android:layout_height="40dp"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:background="@drawable/pill_gray_light"
@@ -99,8 +99,8 @@
 
             <ImageView
                 android:id="@+id/widget_stop_icon"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_stop_dark" />
         </LinearLayout>
