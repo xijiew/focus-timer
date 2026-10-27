@@ -30,7 +30,7 @@ class ChimeReceiver : BroadcastReceiver() {
             lock = null
         }
         val held = lock
-        ChimePlayer.play(app, r.sound) {
+        ChimePlayer.play(app, r.sound, r.soundUri) {
             try {
                 if (held != null && held.isHeld) held.release()
             } catch (t: Throwable) {

@@ -115,6 +115,25 @@ object Notifier {
         }
     }
 
+    /** 锁屏自检用：发一条和计时同渠道的通知，用来判断锁屏显示是否正常 */
+    fun testOngoing(ctx: Context) {
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        val n = NotificationCompat.Builder(ctx, CH_ONGOING)
+            .setSmallIcon(R.drawable.ic_stat_timer)
+            .setContentTitle("锁屏自检通知")
+            .setContentText("如果你在锁屏上看到这一条，说明锁屏通知是通的")
+            .setWhen(System.currentTimeMillis())
+            .setUsesChronometer(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setContentIntent(openIntent(ctx))
+            .build()
+        try {
+            nm.notify(1200, n)
+        } catch (t: Throwable) {
+        }
+    }
+
     /** 负面项目越界提醒：单日上限 / 单周上限，各自去重一次 */
     fun checkThresholds(ctx: Context, projectId: Long) {
         val p = Repo.project(projectId) ?: return

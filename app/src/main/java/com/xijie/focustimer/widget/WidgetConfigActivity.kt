@@ -82,7 +82,7 @@ class WidgetConfigActivity : ComponentActivity() {
                         ) {
                             Text(p.name, style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                (if (p.negative) "负面" else "正面") + " · 默认 " + p.defaultMinutes + " 分钟 · " + p.soundLabel,
+                                (if (p.negative) "负面" else "正面") + " · 上次 " + p.widgetMinutes + " 分钟 · " + p.soundLabel,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }

@@ -1,5 +1,6 @@
 package com.xijie.focustimer.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -16,40 +17,62 @@ sealed class Screen {
 
 @Composable
 fun AppRoot() {
-    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    var stack by remember { mutableStateOf(listOf<Screen>(Screen.Home)) }
     var version by remember { mutableIntStateOf(0) }
 
-    when (val s = screen) {
+    val current = stack.last()
+
+    fun push(s: Screen) {
+        stack = stack + s
+    }
+
+    fun pop() {
+        if (stack.size > 1) stack = stack.dropLast(1)
+    }
+
+    fun resetTo(vararg list: Screen) {
+        stack = list.toList()
+    }
+
+    // 系统返回键 / 侧滑返回：回到上一级，而不是退出到桌面
+    BackHandler(enabled = stack.size > 1) { pop() }
+
+    when (current) {
         is Screen.Home -> HomeScreen(
             version = version,
-            onOpen = { screen = Screen.Detail(it) },
-            onNew = { screen = Screen.Edit(0L) },
-            onBackup = { screen = Screen.Backup }
+            onOpen = { push(Screen.Detail(it)) },
+            onNew = { push(Screen.Edit(0L)) },
+            onBackup = { push(Screen.Backup) }
         )
 
         is Screen.Edit -> ProjectEditScreen(
-            projectId = s.projectId,
+            projectId = current.projectId,
             onDone = {
                 version++
-                screen = if (s.projectId > 0L) Screen.Detail(s.projectId) else Screen.Home
+                if (current.projectId > 0L) {
+                    val id = current.projectId
+                    resetTo(Screen.Home, Screen.Detail(id))
+                } else {
+                    resetTo(Screen.Home)
+                }
             },
-            onCancel = { screen = Screen.Home }
+            onCancel = { pop() }
         )
 
         is Screen.Detail -> ProjectDetailScreen(
-            projectId = s.projectId,
+            projectId = current.projectId,
             version = version,
             onBack = {
                 version++
-                screen = Screen.Home
+                pop()
             },
-            onEdit = { screen = Screen.Edit(s.projectId) }
+            onEdit = { push(Screen.Edit(current.projectId)) }
         )
 
         is Screen.Backup -> BackupScreen(
             onBack = {
                 version++
-                screen = Screen.Home
+                pop()
             }
         )
     }

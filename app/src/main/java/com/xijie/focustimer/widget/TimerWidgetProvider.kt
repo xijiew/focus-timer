@@ -36,7 +36,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 val pid = projectIdOf(context, widgetId)
                 if (pid > 0L) {
                     val running = Repo.running()
-                    val minutes = Repo.project(pid)?.defaultMinutes ?: 25
+                    val proj = Repo.project(pid)
+                    val minutes = proj?.widgetMinutes ?: 25
                     when {
                         running != null && running.projectId == pid -> TimerService.stop(context)
                         running != null -> {
@@ -83,15 +84,15 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(
                 R.id.widget_hint,
-                if (running.chimeFired) "已到时间，继续计时 · 点停止"
-                else "计划 ${running.plannedMinutes} 分 · 点停止"
+                if (running.chimeFired) "已到时间 · 点停止"
+                else "计划 ${running.plannedMinutes} 分"
             )
         } else {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
-            views.setTextViewText(R.id.widget_time, p.defaultMinutes.toString() + " 分钟")
-            views.setTextViewText(R.id.widget_hint, "点一下开始 · 再点一下停止")
+            views.setTextViewText(R.id.widget_time, p.widgetMinutes.toString() + " 分")
+            views.setTextViewText(R.id.widget_hint, "点开始 · 再点停止")
         }
 
         val pi = PendingIntent.getBroadcast(

@@ -6,7 +6,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 1) {
+class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -17,6 +17,8 @@ class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 1) {
                 "negative INTEGER NOT NULL DEFAULT 0," +
                 "defaultMinutes INTEGER NOT NULL DEFAULT 25," +
                 "sound TEXT NOT NULL DEFAULT 'bell'," +
+                "soundUri TEXT NOT NULL DEFAULT ''," +
+                "lastMinutes INTEGER NOT NULL DEFAULT 0," +
                 "dailyLimitMinutes INTEGER NOT NULL DEFAULT 0," +
                 "weeklyLimitMinutes INTEGER NOT NULL DEFAULT 0," +
                 "createdAt INTEGER NOT NULL)"
@@ -35,21 +37,24 @@ class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 1) {
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 版本 1，暂无升级
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE projects ADD COLUMN soundUri TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE projects ADD COLUMN lastMinutes INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     // ---------------- projects ----------------
 
     fun projects(): List<Project> {
         val out = ArrayList<Project>()
-        readableDatabase.rawQuery("SELECT id,name,color,negative,defaultMinutes,sound,dailyLimitMinutes,weeklyLimitMinutes,createdAt FROM projects ORDER BY createdAt ASC", null).use { c ->
+        readableDatabase.rawQuery("SELECT id,name,color,negative,defaultMinutes,sound,dailyLimitMinutes,weeklyLimitMinutes,createdAt,soundUri,lastMinutes FROM projects ORDER BY createdAt ASC", null).use { c ->
             while (c.moveToNext()) out.add(readProject(c))
         }
         return out
     }
 
     fun project(id: Long): Project? {
-        readableDatabase.rawQuery("SELECT id,name,color,negative,defaultMinutes,sound,dailyLimitMinutes,weeklyLimitMinutes,createdAt FROM projects WHERE id=?", arrayOf(id.toString())).use { c ->
+        readableDatabase.rawQuery("SELECT id,name,color,negative,defaultMinutes,sound,dailyLimitMinutes,weeklyLimitMinutes,createdAt,soundUri,lastMinutes FROM projects WHERE id=?", arrayOf(id.toString())).use { c ->
             if (c.moveToFirst()) return readProject(c)
         }
         return null
@@ -64,7 +69,9 @@ class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 1) {
         sound = c.getString(5),
         dailyLimitMinutes = c.getInt(6),
         weeklyLimitMinutes = c.getInt(7),
-        createdAt = c.getLong(8)
+        createdAt = c.getLong(8),
+        soundUri = c.getString(9) ?: "",
+        lastMinutes = c.getInt(10)
     )
 
     fun insertProject(p: Project): Long {
@@ -74,6 +81,8 @@ class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 1) {
             put("negative", if (p.negative) 1 else 0)
             put("defaultMinutes", p.defaultMinutes)
             put("sound", p.sound)
+            put("soundUri", p.soundUri)
+            put("lastMinutes", p.lastMinutes)
             put("dailyLimitMinutes", p.dailyLimitMinutes)
             put("weeklyLimitMinutes", p.weeklyLimitMinutes)
             put("createdAt", p.createdAt)
@@ -88,6 +97,8 @@ class Db(context: Context) : SQLiteOpenHelper(context, "focus.db", null, 1) {
             put("negative", if (p.negative) 1 else 0)
             put("defaultMinutes", p.defaultMinutes)
             put("sound", p.sound)
+            put("soundUri", p.soundUri)
+            put("lastMinutes", p.lastMinutes)
             put("dailyLimitMinutes", p.dailyLimitMinutes)
             put("weeklyLimitMinutes", p.weeklyLimitMinutes)
         }

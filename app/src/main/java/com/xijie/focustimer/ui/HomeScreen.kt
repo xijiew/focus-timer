@@ -168,7 +168,7 @@ private fun ProjectRow(p: Project, running: Boolean, onClick: () -> Unit, onStar
             Column(modifier = Modifier.weight(1f)) {
                 Text(p.name, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    (if (p.negative) "负面" else "正面") + " · 默认 " + p.defaultMinutes + " 分钟 · 提示音 " + p.soundLabel,
+                    (if (p.negative) "负面" else "正面") + " · 上次 " + p.widgetMinutes + " 分钟 · 提示音 " + p.soundLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF777777)
                 )

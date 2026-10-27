@@ -40,6 +40,7 @@ object Repo {
         val startElapsed: Long,
         val plannedMinutes: Int,
         val sound: String,
+        val soundUri: String,
         val chimeFired: Boolean
     )
 
@@ -54,6 +55,7 @@ object Repo {
             startElapsed = prefs.getLong("run_startElapsed", 0L),
             plannedMinutes = prefs.getInt("run_planned", 0),
             sound = prefs.getString("run_sound", "bell") ?: "bell",
+            soundUri = prefs.getString("run_soundUri", "") ?: "",
             chimeFired = prefs.getBoolean("run_chime", false)
         )
     }
@@ -67,6 +69,7 @@ object Repo {
             .putLong("run_startElapsed", r.startElapsed)
             .putInt("run_planned", r.plannedMinutes)
             .putString("run_sound", r.sound)
+            .putString("run_soundUri", r.soundUri)
             .putBoolean("run_chime", r.chimeFired)
             .apply()
     }

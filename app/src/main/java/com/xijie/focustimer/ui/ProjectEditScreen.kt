@@ -1,8 +1,10 @@
 package com.xijie.focustimer.ui
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xijie.focustimer.data.Project
 import com.xijie.focustimer.data.Repo
+import com.xijie.focustimer.timer.ChimePlayer
 
 private val PALETTE = listOf(
     0xFF3F51B5.toInt(), 0xFF00897B.toInt(), 0xFFEF6C00.toInt(),
@@ -52,8 +54,26 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
     var negative by remember { mutableStateOf(existing?.negative ?: false) }
     var defaultMinutes by remember { mutableStateOf((existing?.defaultMinutes ?: 25).toString()) }
     var sound by remember { mutableStateOf(existing?.sound ?: "bell") }
+    var soundUri by remember { mutableStateOf(existing?.soundUri ?: "") }
     var dailyLimit by remember { mutableStateOf((existing?.dailyLimitMinutes ?: 0).toString()) }
     var weeklyLimit by remember { mutableStateOf((existing?.weeklyLimitMinutes ?: 0).toString()) }
+
+    val pickAudio = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (t: Throwable) {
+                // 有些文件提供方不支持持久授权，本次仍可用
+            }
+            soundUri = uri.toString()
+            sound = "custom"
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -95,9 +115,15 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
         OutlinedTextField(
             value = defaultMinutes,
             onValueChange = { v -> defaultMinutes = v.filter { it.isDigit() }.take(4) },
-            label = { Text("默认时长（分钟）——小部件直接用这个值") },
+            label = { Text("默认时长（分钟）") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+        )
+        Text(
+            "桌面小部件点一下会按你上次在 App 里设的时长计时；没设过才用这个默认值。",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(top = 4.dp)
         )
 
         Text("到点提示音", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 16.dp))
@@ -105,10 +131,26 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
             SoundButton("叮", sound == "ding") { sound = "ding" }
             SoundButton("钟", sound == "bell") { sound = "bell" }
             SoundButton("钵", sound == "bowl") { sound = "bowl" }
+        }
+        Row(modifier = Modifier.padding(top = 6.dp)) {
+            SoundButton("自定义", sound == "custom") { sound = "custom" }
             SoundButton("关闭", sound == "none") { sound = "none" }
         }
+
+        if (sound == "custom") {
+            OutlinedButton(
+                onClick = { pickAudio.launch(arrayOf("audio/*")) },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) { Text(if (soundUri.isEmpty()) "选择音频文件" else "已选：" + fileName(soundUri) + "（点击重选）") }
+        }
+
+        OutlinedButton(
+            onClick = { ChimePlayer.play(ctx, sound, soundUri) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        ) { Text("试听这个提示音") }
+
         Text(
-            "只响一声，响完继续计时不停止。走闹钟通道，静音模式下也会响。",
+            "只响一声，响完继续计时不停止。走闹钟通道，静音模式下也会响；音量取“闹钟音量”。",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF888888),
             modifier = Modifier.padding(top = 6.dp)
@@ -145,22 +187,22 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
         Button(
             onClick = {
                 val trimmed = name.trim()
-                if (trimmed.isEmpty()) {
-                    // 名称不能为空
-                } else {
-                val p = Project(
-                    id = existing?.id ?: 0L,
-                    name = trimmed,
-                    color = color,
-                    negative = negative,
-                    defaultMinutes = (defaultMinutes.toIntOrNull() ?: 25).coerceAtLeast(1),
-                    sound = sound,
-                    dailyLimitMinutes = dailyLimit.toIntOrNull() ?: 0,
-                    weeklyLimitMinutes = weeklyLimit.toIntOrNull() ?: 0,
-                    createdAt = existing?.createdAt ?: System.currentTimeMillis()
-                )
-                Repo.saveProject(p)
-                onDone()
+                if (trimmed.isNotEmpty()) {
+                    val p = Project(
+                        id = existing?.id ?: 0L,
+                        name = trimmed,
+                        color = color,
+                        negative = negative,
+                        defaultMinutes = (defaultMinutes.toIntOrNull() ?: 25).coerceAtLeast(1),
+                        sound = sound,
+                        soundUri = if (sound == "custom") soundUri else "",
+                        dailyLimitMinutes = dailyLimit.toIntOrNull() ?: 0,
+                        weeklyLimitMinutes = weeklyLimit.toIntOrNull() ?: 0,
+                        createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                        lastMinutes = existing?.lastMinutes ?: 0
+                    )
+                    Repo.saveProject(p)
+                    onDone()
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
@@ -176,6 +218,16 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
             ) { Text("删除这个项目（含它的记录）") }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+private fun fileName(uri: String): String {
+    val cut = uri.lastIndexOf('/')
+    val raw = if (cut >= 0) uri.substring(cut + 1) else uri
+    return try {
+        java.net.URLDecoder.decode(raw, "UTF-8").take(24)
+    } catch (t: Throwable) {
+        raw.take(24)
     }
 }
 

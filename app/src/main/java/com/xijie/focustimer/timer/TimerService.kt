@@ -67,10 +67,15 @@ class TimerService : Service() {
     private fun begin(projectId: Long, minutes: Int) {
         // 若已有计时在跑，先把它结算掉，避免覆盖丢记录
         Repo.running()?.let { saveAndClear(it) }
-        val p = Repo.project(projectId)
+        var p = Repo.project(projectId)
         if (p == null) {
             stopSelf()
             return
+        }
+        // 记住这一次设的时长，下次点桌面小部件就用它
+        if (p.lastMinutes != minutes) {
+            Repo.saveProject(p.copy(lastMinutes = minutes))
+            p = Repo.project(projectId) ?: p
         }
         val running = Repo.Running(
             projectId = p.id,
@@ -80,6 +85,7 @@ class TimerService : Service() {
             startElapsed = SystemClock.elapsedRealtime(),
             plannedMinutes = minutes,
             sound = p.sound,
+            soundUri = p.soundUri,
             chimeFired = false
         )
         Repo.saveRunning(running)
