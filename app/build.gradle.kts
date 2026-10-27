@@ -14,8 +14,8 @@ android {
         applicationId = "com.xijie.focustimer"
         minSdk = 29
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.9"
+        versionCode = 11
+        versionName = "2.0"
     }
 
     buildTypes {
