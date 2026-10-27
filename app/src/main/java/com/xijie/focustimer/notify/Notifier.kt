@@ -11,26 +11,35 @@ import com.xijie.focustimer.R
 import com.xijie.focustimer.data.Repo
 import com.xijie.focustimer.timer.TimerService
 import com.xijie.focustimer.ui.MainActivity
+import com.xijie.focustimer.util.Format
 import com.xijie.focustimer.util.Stats
 
 object Notifier {
 
-    const val CH_ONGOING = "ongoing"
+    // v2：通知渠道创建后不可修改，改"锁屏可见"必须换新 id
+    const val CH_ONGOING = "ongoing_v2"
     const val CH_ALERT = "alert"
     const val ONGOING_ID = 1001
     private const val ALERT_ID = 1100
 
     fun ensureChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        // 清掉旧渠道（v1 的 ongoing 不能改属性了）
+        try {
+            nm.deleteNotificationChannel("ongoing")
+        } catch (t: Throwable) {
+        }
         if (nm.getNotificationChannel(CH_ONGOING) == null) {
             val ch = NotificationChannel(CH_ONGOING, "计时中", NotificationManager.IMPORTANCE_LOW)
             ch.setShowBadge(false)
             ch.setSound(null, null)
+            ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             nm.createNotificationChannel(ch)
         }
         if (nm.getNotificationChannel(CH_ALERT) == null) {
             val ch = NotificationChannel(CH_ALERT, "越界提醒", NotificationManager.IMPORTANCE_DEFAULT)
             ch.setSound(null, null)
+            ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             nm.createNotificationChannel(ch)
         }
     }
@@ -49,23 +58,29 @@ object Notifier {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+    /**
+     * 用系统自带的计时器（setUsesChronometer）显示已用时长：
+     * 由系统每秒自己刷新，锁屏上也实时走，不用我们一秒一次地唤醒 CPU。
+     */
     fun ongoing(ctx: Context, r: Repo.Running, elapsedMs: Long, timeUp: Boolean): Notification {
-        val clock = com.xijie.focustimer.util.Format.clock(elapsedMs)
         val text = if (timeUp) {
-            "已到时间 · 继续计时中 $clock"
+            "已到时间 · 继续计时中（点停止结束）"
         } else {
-            "已专注 $clock / 计划 ${r.plannedMinutes} 分钟"
+            "计划 " + r.plannedMinutes + " 分钟 · 计时中"
         }
         return NotificationCompat.Builder(ctx, CH_ONGOING)
             .setSmallIcon(R.drawable.ic_stat_timer)
             .setContentTitle(r.projectName)
             .setContentText(text)
+            .setWhen(r.startWall)
+            .setUsesChronometer(true)
+            .setChronometerCountUp(true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setShowWhen(false)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openIntent(ctx))
-            .addAction(0, "停止", stopIntent(ctx))
+            .addAction(0, "停止并保存", stopIntent(ctx))
             .build()
     }
 
@@ -86,6 +101,7 @@ object Notifier {
             .setContentText(text)
             .setAutoCancel(true)
             .setSilent(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openIntent(ctx))
             .build()
         try {
@@ -107,7 +123,7 @@ object Notifier {
                 val key = "d_${projectId}_$from"
                 if (!Repo.warned(key)) {
                     Repo.markWarned(key)
-                    alert(ctx, p.name, "今日已超单日上限 ${p.dailyLimitMinutes} 分钟（已 ${com.xijie.focustimer.util.Format.duration(used)}）")
+                    alert(ctx, p.name, "今日已超单日上限 ${p.dailyLimitMinutes} 分钟（已 ${Format.duration(used)}）")
                 }
             }
         }
@@ -118,7 +134,7 @@ object Notifier {
                 val key = "w_${projectId}_$from"
                 if (!Repo.warned(key)) {
                     Repo.markWarned(key)
-                    alert(ctx, p.name, "本周已超单周上限 ${p.weeklyLimitMinutes} 分钟（已 ${com.xijie.focustimer.util.Format.duration(used)}）")
+                    alert(ctx, p.name, "本周已超单周上限 ${p.weeklyLimitMinutes} 分钟（已 ${Format.duration(used)}）")
                 }
             }
         }

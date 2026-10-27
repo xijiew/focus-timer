@@ -6,6 +6,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
+import android.view.View
 import android.widget.RemoteViews
 import com.xijie.focustimer.R
 import com.xijie.focustimer.data.Repo
@@ -60,19 +62,33 @@ class TimerWidgetProvider : AppWidgetProvider() {
         val pid = projectIdOf(context, widgetId)
         val p = if (pid > 0L) Repo.project(pid) else null
         val running = Repo.running()
+        val active = p != null && running != null && running.projectId == p.id
 
         if (p == null) {
+            views.setViewVisibility(R.id.widget_chrono, View.GONE)
+            views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, "未选择项目")
             views.setTextViewText(R.id.widget_time, "--")
             views.setTextViewText(R.id.widget_hint, "删掉重放，先选一个项目")
-        } else if (running != null && running.projectId == p.id) {
+        } else if (active && running != null) {
+            // 用系统 Chronometer 在桌面自己走秒，不需要我们频繁刷新
+            views.setViewVisibility(R.id.widget_time, View.GONE)
+            views.setViewVisibility(R.id.widget_chrono, View.VISIBLE)
+            views.setChronometer(
+                R.id.widget_chrono,
+                SystemClock.elapsedRealtime() - Repo.elapsedMs(running),
+                null,
+                true
+            )
             views.setTextViewText(R.id.widget_name, p.name)
-            views.setTextViewText(R.id.widget_time, Format.clock(Repo.elapsedMs(running)))
             views.setTextViewText(
                 R.id.widget_hint,
-                if (running.chimeFired) "已到时间 · 继续计时中" else "计时中 · 计划 ${running.plannedMinutes} 分"
+                if (running.chimeFired) "已到时间 · 继续计时中 · 点一下停止"
+                else "计时中 · 计划 ${running.plannedMinutes} 分 · 点一下停止"
             )
         } else {
+            views.setViewVisibility(R.id.widget_chrono, View.GONE)
+            views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(R.id.widget_time, p.defaultMinutes.toString() + " 分钟")
             views.setTextViewText(R.id.widget_hint, "点一下开始 · 再点一下停止")

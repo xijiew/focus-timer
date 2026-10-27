@@ -54,7 +54,7 @@ class TimerService : Service() {
                 val r = Repo.running()
                 if (r != null) {
                     startAsForeground(r)
-                    if (!r.chimeFired) scheduleChime(r.startWall + r.plannedMinutes * 60_000L)
+                    if (!r.chimeFired) scheduleChime(r.startWall + r.plannedMinutes * 60_000L, r.projectName)
                     startTicker()
                 } else {
                     stopSelf()
@@ -84,7 +84,7 @@ class TimerService : Service() {
         )
         Repo.saveRunning(running)
         startAsForeground(running)
-        scheduleChime(running.startWall + minutes * 60_000L)
+        scheduleChime(running.startWall + minutes * 60_000L, p.name)
         startTicker()
         TimerWidgetProvider.notifyChanged(this)
     }
@@ -149,9 +149,24 @@ class TimerService : Service() {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
 
-    private fun scheduleChime(atWall: Long) {
+    private fun scheduleChime(atWall: Long, label: String) {
         val am = getSystemService(AlarmManager::class.java) ?: return
         val pi = chimePendingIntent()
+        // 优先用"闹钟时钟"闹钟（setAlarmClock）：系统会把它当真正的闹钟对待，
+        // 深度休眠 / 锁屏 / 后台严管下也能准点唤醒，这是锁屏不响的关键。
+        try {
+            val show = PendingIntent.getActivity(
+                this,
+                REQ_SHOW,
+                Intent(this, com.xijie.focustimer.ui.MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(atWall, show), pi)
+            return
+        } catch (t: Throwable) {
+            // 落到精确闹钟
+        }
         try {
             if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atWall, pi)
@@ -187,6 +202,7 @@ class TimerService : Service() {
         const val EXTRA_PROJECT_ID = "project_id"
         const val EXTRA_MINUTES = "minutes"
         private const val REQ_CHIME = 9001
+        private const val REQ_SHOW = 9002
 
         fun start(ctx: Context, projectId: Long, minutes: Int) {
             val i = Intent(ctx, TimerService::class.java)

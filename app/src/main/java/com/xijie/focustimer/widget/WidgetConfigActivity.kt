@@ -5,8 +5,12 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +32,7 @@ class WidgetConfigActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setResult(RESULT_CANCELED)
         widgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
@@ -37,7 +42,9 @@ class WidgetConfigActivity : ComponentActivity() {
         setContent {
             AppTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    Picker(projects) { p -> choose(p) }
+                    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                        Picker(projects) { p -> choose(p) }
+                    }
                 }
             }
         }

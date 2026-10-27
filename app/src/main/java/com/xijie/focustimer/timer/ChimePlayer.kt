@@ -17,10 +17,14 @@ object ChimePlayer {
     /**
      * 走闹钟音频通道（USAGE_ALARM）：手机静音也会响，音量取"闹钟音量"。
      * 只响一次，响完自动释放，不循环、不重复。
+     * onDone 一定会被调用（包括"关闭提示音"和播放失败的情况），调用方据此释放唤醒锁。
      */
-    fun play(ctx: Context, sound: String) {
+    fun play(ctx: Context, sound: String, onDone: (() -> Unit)? = null) {
         val res = resId(sound)
-        if (res == 0) return
+        if (res == 0) {
+            onDone?.invoke()
+            return
+        }
         try {
             val attrs = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ALARM)
@@ -35,11 +39,21 @@ object ChimePlayer {
             } finally {
                 afd.close()
             }
-            mp.setOnCompletionListener { it.release() }
-            mp.setOnErrorListener { p, _, _ -> p.release(); true }
+            var released = false
+            fun done() {
+                if (released) return
+                released = true
+                try {
+                    mp.release()
+                } catch (t: Throwable) {
+                }
+                onDone?.invoke()
+            }
+            mp.setOnCompletionListener { done() }
+            mp.setOnErrorListener { _, _, _ -> done(); true }
             mp.start()
         } catch (t: Throwable) {
-            // 播放失败不影响计时
+            onDone?.invoke()
         }
     }
 }
