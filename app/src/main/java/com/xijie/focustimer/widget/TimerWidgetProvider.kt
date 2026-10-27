@@ -140,7 +140,17 @@ class TimerWidgetProvider : AppWidgetProvider() {
     private fun updateOne(context: Context, mgr: AppWidgetManager, widgetId: Int) {
         val large = isLarge(mgr, widgetId)
         val night = isNight(context)
-        val views = RemoteViews(context.packageName, R.layout.widget_timer)
+
+        val pid = projectIdOf(context, widgetId)
+        val p = if (pid > 0L) Repo.project(pid) else null
+        val running = Repo.running()
+        val active = p != null && running != null && running.projectId == p.id
+        // 空闲与运行用两套布局：布局 id 不同会强制桌面重新 inflate，
+        // 避免“隐藏过的按钮残留、深色模式下多出一个停止胶囊”这类脏状态
+        val views = RemoteViews(
+            context.packageName,
+            if (active) R.layout.widget_timer_run else R.layout.widget_timer
+        )
 
         // ---- 尺寸 & 深色模式 ----
         views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 32f else 18f)
@@ -164,20 +174,17 @@ class TimerWidgetProvider : AppWidgetProvider() {
         val showButtons = large
         views.setViewVisibility(R.id.widget_sub, if (showButtons) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_action, if (showButtons) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_stop, View.GONE)
-        views.setInt(
-            R.id.widget_stop, "setBackgroundResource",
-            if (night) R.drawable.pill_gray_dark else R.drawable.pill_gray_light
-        )
-        views.setImageViewResource(
-            R.id.widget_stop_icon,
-            if (night) R.drawable.ic_stop_light else R.drawable.ic_stop_dark
-        )
-
-        val pid = projectIdOf(context, widgetId)
-        val p = if (pid > 0L) Repo.project(pid) else null
-        val running = Repo.running()
-        val active = p != null && running != null && running.projectId == p.id
+        if (active) {
+            views.setViewVisibility(R.id.widget_stop, if (showButtons) View.VISIBLE else View.GONE)
+            views.setInt(
+                R.id.widget_stop, "setBackgroundResource",
+                if (night) R.drawable.pill_gray_dark else R.drawable.pill_gray_light
+            )
+            views.setImageViewResource(
+                R.id.widget_stop_icon,
+                if (night) R.drawable.ic_stop_light else R.drawable.ic_stop_dark
+            )
+        }
         val colorIdx = paletteIndex(p?.color ?: PALETTE[0])
 
         views.setTextViewText(
@@ -217,13 +224,11 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     if (night) R.drawable.pill_white else R.drawable.pill_bg
                 )
             }
-            if (showButtons) views.setViewVisibility(R.id.widget_stop, View.VISIBLE)
         } else {
             views.setTextViewText(R.id.widget_name, p.name)
             val m = minutesFor(context, widgetId, p)
             views.setTextViewText(R.id.widget_time, if (showButtons) "00:00" else m.toString() + " 分")
             views.setTextViewText(R.id.widget_sub, "计划 " + m + " 分")
-            views.setViewVisibility(R.id.widget_stop, View.GONE)
             setAction(views, R.drawable.ic_play, PILL_RES[colorIdx])
         }
 
@@ -235,7 +240,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
         }
         views.setOnClickPendingIntent(R.id.widget_root, click)
         views.setOnClickPendingIntent(R.id.widget_action, actionClick)
-        views.setOnClickPendingIntent(R.id.widget_stop, stopIntent(context, widgetId))
+        if (active) views.setOnClickPendingIntent(R.id.widget_stop, stopIntent(context, widgetId))
         mgr.updateAppWidget(widgetId, views)
     }
 
