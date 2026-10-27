@@ -16,6 +16,27 @@ import com.xijie.focustimer.data.Project
 import com.xijie.focustimer.data.Repo
 import com.xijie.focustimer.timer.TimerService
 
+/** 与项目编辑页的 PALETTE 顺序保持一致 */
+private val PALETTE = intArrayOf(
+    0xFF3F51B5.toInt(), 0xFF00897B.toInt(), 0xFFEF6C00.toInt(),
+    0xFFC62828.toInt(), 0xFF6A1B9A.toInt(), 0xFF546E7A.toInt()
+)
+private val BADGE_RES = intArrayOf(
+    com.xijie.focustimer.R.drawable.badge_p0, com.xijie.focustimer.R.drawable.badge_p1,
+    com.xijie.focustimer.R.drawable.badge_p2, com.xijie.focustimer.R.drawable.badge_p3,
+    com.xijie.focustimer.R.drawable.badge_p4, com.xijie.focustimer.R.drawable.badge_p5
+)
+private val PILL_RES = intArrayOf(
+    com.xijie.focustimer.R.drawable.pill_p0, com.xijie.focustimer.R.drawable.pill_p1,
+    com.xijie.focustimer.R.drawable.pill_p2, com.xijie.focustimer.R.drawable.pill_p3,
+    com.xijie.focustimer.R.drawable.pill_p4, com.xijie.focustimer.R.drawable.pill_p5
+)
+
+private fun paletteIndex(color: Int): Int {
+    val i = PALETTE.indexOfFirst { it == color }
+    return if (i in PALETTE.indices) i else 0
+}
+
 /**
  * 桌面小部件：
  * - 放置/点击齿轮时配置项目与时长来源
@@ -68,13 +89,11 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 } else {
                     val minutes = minutesFor(context, widgetId, p)
                     val running = Repo.running()
-                    when {
-                        running != null && running.projectId == p.id -> TimerService.stop(context)
-                        running != null -> {
-                            TimerService.stop(context)
-                            TimerService.start(context, p.id, minutes)
-                        }
-                        else -> TimerService.start(context, p.id, minutes)
+                    if (running != null && running.projectId == p.id) {
+                        TimerService.stop(context)
+                    } else {
+                        // 换项目直接 start，服务内部会把上一段结算掉；不要 stop→start 连打
+                        TimerService.start(context, p.id, minutes)
                     }
                 }
                 updateAll(context)
@@ -87,6 +106,9 @@ class TimerWidgetProvider : AppWidgetProvider() {
         }
         super.onReceive(context, intent)
     }
+
+    private fun dp(context: Context, v: Int): Int =
+        (v * context.resources.displayMetrics.density).toInt()
 
     private fun isLarge(mgr: AppWidgetManager, widgetId: Int): Boolean {
         return try {
@@ -104,10 +126,16 @@ class TimerWidgetProvider : AppWidgetProvider() {
     private fun updateOne(context: Context, mgr: AppWidgetManager, widgetId: Int) {
         val large = isLarge(mgr, widgetId)
         val views = RemoteViews(context.packageName, R.layout.widget_timer)
-        val timeSize = if (large) 44f else 20f
+        val timeSize = if (large) 46f else 19f
         views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, timeSize)
         views.setTextViewTextSize(R.id.widget_chrono, TypedValue.COMPLEX_UNIT_SP, timeSize)
-        views.setViewVisibility(R.id.widget_badge, if (large) View.VISIBLE else View.GONE)
+        views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 14f else 12f)
+        if (large) {
+            views.setViewPadding(R.id.widget_root, dp(context, 16), dp(context, 14), dp(context, 16), dp(context, 14))
+        } else {
+            views.setViewPadding(R.id.widget_root, dp(context, 12), dp(context, 6), dp(context, 12), dp(context, 6))
+        }
+        views.setViewVisibility(R.id.widget_hint, if (large) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_action, if (large) View.VISIBLE else View.GONE)
         val pid = projectIdOf(context, widgetId)
         val p = if (pid > 0L) Repo.project(pid) else null
@@ -118,6 +146,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
             R.id.widget_badge,
             if (p != null && p.name.isNotEmpty()) p.name.take(1) else "·"
         )
+        val colorIdx = paletteIndex(p?.color ?: PALETTE[0])
+        views.setInt(R.id.widget_badge, "setBackgroundResource", BADGE_RES[colorIdx])
 
         if (p == null) {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
@@ -141,21 +171,28 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(
                 R.id.widget_hint,
-                if (!large) "" else if (running.chimeFired) "已到时间 · 继续计时中" else "计划 ${running.plannedMinutes} 分"
+                if (!large) "" else if (running.chimeFired) "已响过 · 继续计时" else "计划 ${running.plannedMinutes} 分"
             )
-            if (large) views.setTextViewText(R.id.widget_action, "■ 停止")
+            if (large) {
+                views.setTextViewText(R.id.widget_action, "\u25A0\uFE0E 停止")
+                views.setInt(R.id.widget_action, "setBackgroundResource", R.drawable.pill_bg)
+            }
         } else {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
-            views.setTextViewText(R.id.widget_time, minutesFor(context, widgetId, p).toString() + " 分")
-            views.setTextViewText(R.id.widget_hint, if (large) "点一下开始" else "")
-            if (large) views.setTextViewText(R.id.widget_action, "▶ 开始")
+            val m = minutesFor(context, widgetId, p)
+            views.setTextViewText(R.id.widget_time, if (large) "00:00" else m.toString() + " 分")
+            // 空闲态不写提示，跟“滴答清单”一样干净；项目时长在开始后的提示行里给出
+            views.setTextViewText(R.id.widget_hint, "")
+            if (large) {
+                views.setTextViewText(R.id.widget_action, "\u25B6\uFE0E 开始")
+                views.setInt(R.id.widget_action, "setBackgroundResource", PILL_RES[colorIdx])
+            }
         }
 
         val click = if (p == null) configIntent(context, widgetId) else toggleIntent(context, widgetId)
         views.setOnClickPendingIntent(R.id.widget_root, click)
-        views.setOnClickPendingIntent(R.id.widget_cfg, configIntent(context, widgetId))
         views.setOnClickPendingIntent(R.id.widget_action, click)
 
         mgr.updateAppWidget(widgetId, views)

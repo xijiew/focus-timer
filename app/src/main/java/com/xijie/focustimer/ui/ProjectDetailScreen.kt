@@ -236,7 +236,6 @@ fun ProjectDetailScreen(
 
     if (showStart) {
         StartDialog2(p, onDismiss = { showStart = false }) { minutes ->
-            if (Repo.running() != null) TimerService.stop(ctx)
             TimerService.start(ctx, p.id, minutes)
             showStart = false
         }

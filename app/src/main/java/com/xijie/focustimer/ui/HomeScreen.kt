@@ -143,6 +143,7 @@ fun HomeScreen(
                     running = running != null && running.projectId == p.id,
                     onClick = { onOpen(p.id) },
                     onStart = { startTarget = p },
+                    onStop = { TimerService.stop(ctx) },
                     onLongClick = { menuTarget = p }
                 )
             }
@@ -161,9 +162,11 @@ fun HomeScreen(
             project = target,
             onDismiss = { startTarget = null },
             onStart = { minutes ->
-                if (Repo.running() != null) TimerService.stop(ctx)
+                // 不再先 stop 再 start：服务内部 begin() 会自动结算上一段；
+                // 连打 stop→start 会让系统报“前台服务未及时 startForeground”把进程杀掉（就是自动回桌面的原因）
                 TimerService.start(ctx, target.id, minutes)
                 startTarget = null
+                refresh++
             }
         )
     }
@@ -218,6 +221,7 @@ private fun ProjectRow(
     running: Boolean,
     onClick: () -> Unit,
     onStart: () -> Unit,
+    onStop: () -> Unit,
     onLongClick: () -> Unit
 ) {
     Card(
@@ -250,10 +254,11 @@ private fun ProjectRow(
                 )
             }
             if (running) {
-                Text("计时中", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
+                // 计时中：主按钮变成“停止”，不能再点出时长输入框重复开始
+                TextButton(onClick = onStop) { Text("停止", color = Color(0xFFC62828)) }
+            } else {
+                TextButton(onClick = onStart) { Text("开始") }
             }
-            TextButton(onClick = onStart) { Text("开始") }
         }
     }
 }
