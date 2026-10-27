@@ -144,7 +144,7 @@ fun ProjectEditScreen(
         }
         Row(modifier = Modifier.padding(top = 6.dp)) {
             SoundButton("自定义", sound == "custom") { sound = "custom" }
-            SoundButton("关闭", sound = "none") { sound = "none" }
+            SoundButton("关闭", sound == "none") { sound = "none" }
         }
 
         if (sound == "custom") {
