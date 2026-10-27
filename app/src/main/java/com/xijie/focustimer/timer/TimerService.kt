@@ -152,11 +152,21 @@ class TimerService : Service() {
     private fun startTicker() {
         ticker?.cancel()
         ticker = scope.launch {
+            var n = 0
             while (true) {
                 val r = Repo.running() ?: break
-                Notifier.updateOngoing(this@TimerService, r, Repo.elapsedMs(r), r.chimeFired)
-                TimerWidgetProvider.notifyChanged(this@TimerService)
-                delay(30_000L)
+                // 桌面小部件的数字靠这里每秒刷新（不再用 Chronometer：MIUI 上改不动字号/颜色）
+                if (!r.paused) {
+                    TimerWidgetProvider.updateAll(this@TimerService)
+                    if (n % 30 == 0) {
+                        try {
+                            Notifier.updateOngoing(this@TimerService, r, Repo.elapsedMs(r), r.chimeFired)
+                        } catch (t: Throwable) {
+                        }
+                    }
+                }
+                n++
+                delay(1000L)
             }
         }
     }

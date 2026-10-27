@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import android.os.SystemClock
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -144,10 +143,9 @@ class TimerWidgetProvider : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_timer)
 
         // ---- 尺寸 & 深色模式 ----
-        val timeSize = if (large) 40f else 22f
-        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, timeSize)
-        views.setTextViewTextSize(R.id.widget_chrono, TypedValue.COMPLEX_UNIT_SP, timeSize)
-        views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 14f else 12f)
+        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 40f else 22f)
+        views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 13f else 12f)
+        views.setTextViewTextSize(R.id.widget_sub, TypedValue.COMPLEX_UNIT_SP, if (large) 11f else 10f)
         views.setViewPadding(
             R.id.widget_root,
             dp(context, if (large) 16 else 12),
@@ -161,17 +159,12 @@ class TimerWidgetProvider : AppWidgetProvider() {
         )
         views.setTextColor(R.id.widget_name, if (night) 0xFF9A9A9A.toInt() else 0xFF7A7A7A.toInt())
         views.setTextColor(R.id.widget_time, if (night) 0xFFF2F2F2.toInt() else 0xFF1A1A1A.toInt())
-        views.setTextColor(R.id.widget_chrono, if (night) 0xFFF2F2F2.toInt() else 0xFF1A1A1A.toInt())
-        views.setTextColor(R.id.widget_hint, if (night) 0xFF808080.toInt() else 0xFFB3B3B3.toInt())
+        views.setTextColor(R.id.widget_sub, if (night) 0xFF808080.toInt() else 0xFFB3B3B3.toInt())
+
         val showButtons = large
-        views.setViewVisibility(R.id.widget_hint, if (showButtons) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_sub, if (showButtons) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_action, if (showButtons) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_stop, View.GONE)
-        views.setTextColor(R.id.widget_action_text, 0xFFFFFFFF.toInt())
-        views.setTextColor(
-            R.id.widget_stop_text,
-            if (night) 0xFFE8E8E8.toInt() else 0xFF4A4A4A.toInt()
-        )
         views.setInt(
             R.id.widget_stop, "setBackgroundResource",
             if (night) R.drawable.pill_gray_dark else R.drawable.pill_gray_light
@@ -194,46 +187,43 @@ class TimerWidgetProvider : AppWidgetProvider() {
         views.setInt(R.id.widget_badge, "setBackgroundResource", BADGE_RES[colorIdx])
 
         if (p == null) {
-            views.setViewVisibility(R.id.widget_chrono, View.GONE)
-            views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, if (pid > 0L) "项目已删除" else "未选择项目")
+            views.setTextViewText(R.id.widget_sub, "")
             views.setTextViewText(R.id.widget_time, "--")
-            views.setTextViewText(R.id.widget_hint, "点一下重新选择项目")
-            setAction(views, R.drawable.ic_play, "选择项目", PILL_RES[colorIdx])
+            setAction(views, R.drawable.ic_play, PILL_RES[colorIdx])
         } else if (active && running != null) {
             views.setTextViewText(R.id.widget_name, p.name)
+            // 数字由前台服务每秒刷新（不再用 Chronometer，避免字号/颜色改不动）
+            views.setTextViewText(R.id.widget_time, Format.clock(Repo.elapsedMs(running)))
+            views.setTextViewText(
+                R.id.widget_sub,
+                when {
+                    running.paused -> "已暂停"
+                    running.chimeFired -> "已响过 · 继续计时"
+                    else -> "计划 " + running.plannedMinutes + " 分"
+                }
+            )
+            // 深色模式：白底+深色图标；浅色模式：黑底+白色图标
             if (running.paused) {
-                // 暂停中：时间定格，不再用秒表
-                views.setViewVisibility(R.id.widget_chrono, View.GONE)
-                views.setViewVisibility(R.id.widget_time, View.VISIBLE)
-                views.setTextViewText(R.id.widget_time, Format.clock(Repo.elapsedMs(running)))
-                views.setTextViewText(R.id.widget_hint, "已暂停")
-                setAction(views, R.drawable.ic_play, "继续", R.drawable.pill_bg)
+                setAction(
+                    views,
+                    if (night) R.drawable.ic_play_dark else R.drawable.ic_play,
+                    if (night) R.drawable.pill_white else R.drawable.pill_bg
+                )
             } else {
-                views.setViewVisibility(R.id.widget_time, View.GONE)
-                views.setViewVisibility(R.id.widget_chrono, View.VISIBLE)
-                views.setChronometer(
-                    R.id.widget_chrono,
-                    SystemClock.elapsedRealtime() - Repo.elapsedMs(running),
-                    null,
-                    true
+                setAction(
+                    views,
+                    if (night) R.drawable.ic_pause_dark else R.drawable.ic_pause,
+                    if (night) R.drawable.pill_white else R.drawable.pill_bg
                 )
-                views.setTextViewText(
-                    R.id.widget_hint,
-                    if (running.chimeFired) "已响过 · 继续计时" else "计划 ${running.plannedMinutes} 分"
-                )
-                setAction(views, R.drawable.ic_pause, "暂停", R.drawable.pill_bg)
             }
-            views.setTextViewText(R.id.widget_stop_text, "停止")
-            views.setViewVisibility(R.id.widget_stop, if (showButtons) View.VISIBLE else View.GONE)
+            if (showButtons) views.setViewVisibility(R.id.widget_stop, View.VISIBLE)
         } else {
-            views.setViewVisibility(R.id.widget_chrono, View.GONE)
-            views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
             val m = minutesFor(context, widgetId, p)
             views.setTextViewText(R.id.widget_time, if (showButtons) "00:00" else m.toString() + " 分")
-            views.setTextViewText(R.id.widget_hint, "")
-            setAction(views, R.drawable.ic_play, "开始", PILL_RES[colorIdx])
+            views.setTextViewText(R.id.widget_sub, "计划 " + m + " 分")
+            setAction(views, R.drawable.ic_play, PILL_RES[colorIdx])
         }
 
         val click = if (p == null) configIntent(context, widgetId) else toggleIntent(context, widgetId)
@@ -248,10 +238,9 @@ class TimerWidgetProvider : AppWidgetProvider() {
         mgr.updateAppWidget(widgetId, views)
     }
 
-    /** 胶囊里的图标 + 文字 + 底色 */
-    private fun setAction(views: RemoteViews, iconRes: Int, label: String, bgRes: Int) {
+    /** 主胶囊只放图标（用户要求：不要“暂停/停止”文字） */
+    private fun setAction(views: RemoteViews, iconRes: Int, bgRes: Int) {
         views.setImageViewResource(R.id.widget_action_icon, iconRes)
-        views.setTextViewText(R.id.widget_action_text, label)
         views.setInt(R.id.widget_action, "setBackgroundResource", bgRes)
     }
 
