@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.xijie.focustimer.R
@@ -102,19 +103,21 @@ class TimerWidgetProvider : AppWidgetProvider() {
 
     private fun updateOne(context: Context, mgr: AppWidgetManager, widgetId: Int) {
         val large = isLarge(mgr, widgetId)
-        val views = RemoteViews(
-            context.packageName,
-            if (large) R.layout.widget_timer_large else R.layout.widget_timer
-        )
+        val views = RemoteViews(context.packageName, R.layout.widget_timer)
+        val timeSize = if (large) 44f else 20f
+        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, timeSize)
+        views.setTextViewTextSize(R.id.widget_chrono, TypedValue.COMPLEX_UNIT_SP, timeSize)
+        views.setViewVisibility(R.id.widget_badge, if (large) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_action, if (large) View.VISIBLE else View.GONE)
         val pid = projectIdOf(context, widgetId)
         val p = if (pid > 0L) Repo.project(pid) else null
         val running = Repo.running()
         val active = p != null && running != null && running.projectId == p.id
 
-        if (large) {
-            views.setViewVisibility(R.id.widget_badge, View.VISIBLE)
-            views.setTextViewText(R.id.widget_badge, if (p != null && p.name.isNotEmpty()) p.name.take(1) else "·")
-        }
+        views.setTextViewText(
+            R.id.widget_badge,
+            if (p != null && p.name.isNotEmpty()) p.name.take(1) else "·"
+        )
 
         if (p == null) {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
@@ -124,7 +127,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 if (pid > 0L) "项目已删除" else "未选择项目"
             )
             views.setTextViewText(R.id.widget_time, "--")
-            views.setTextViewText(R.id.widget_hint, "点一下重新选择项目")
+            views.setTextViewText(R.id.widget_hint, if (large) "点一下重新选择项目" else "")
             if (large) views.setTextViewText(R.id.widget_action, "选择项目")
         } else if (active && running != null) {
             views.setViewVisibility(R.id.widget_time, View.GONE)
@@ -138,7 +141,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(
                 R.id.widget_hint,
-                if (running.chimeFired) "已到时间 · 继续计时中" else "计划 ${running.plannedMinutes} 分"
+                if (!large) "" else if (running.chimeFired) "已到时间 · 继续计时中" else "计划 ${running.plannedMinutes} 分"
             )
             if (large) views.setTextViewText(R.id.widget_action, "■ 停止")
         } else {
@@ -146,14 +149,14 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(R.id.widget_time, minutesFor(context, widgetId, p).toString() + " 分")
-            views.setTextViewText(R.id.widget_hint, "点一下开始")
+            views.setTextViewText(R.id.widget_hint, if (large) "点一下开始" else "")
             if (large) views.setTextViewText(R.id.widget_action, "▶ 开始")
         }
 
         val click = if (p == null) configIntent(context, widgetId) else toggleIntent(context, widgetId)
         views.setOnClickPendingIntent(R.id.widget_root, click)
         views.setOnClickPendingIntent(R.id.widget_cfg, configIntent(context, widgetId))
-        if (large) views.setOnClickPendingIntent(R.id.widget_action, click)
+        views.setOnClickPendingIntent(R.id.widget_action, click)
 
         mgr.updateAppWidget(widgetId, views)
     }
