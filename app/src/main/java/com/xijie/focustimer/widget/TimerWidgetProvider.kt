@@ -6,16 +6,21 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import com.xijie.focustimer.R
+import com.xijie.focustimer.data.Project
 import com.xijie.focustimer.data.Repo
 import com.xijie.focustimer.timer.TimerService
-import com.xijie.focustimer.util.Format
 
 /**
- * 桌面小部件：放置时绑定项目；点一下开始、再点一下停止；时长用该项目上次设定的分钟数；不打开 App。
+ * 桌面小部件：
+ * - 放置/点击齿轮时配置项目与时长来源
+ * - 点一下开始、再点一下停止，不打开 App
+ * - 支持 2x1 与 2x2（按系统给的尺寸自动换布局）
+ * - 绑定的项目被删除后，点一下会弹出重新选择项目
  */
 class TimerWidgetProvider : AppWidgetProvider() {
 
@@ -23,9 +28,23 @@ class TimerWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { updateOne(context, appWidgetManager, it) }
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle?
+    ) {
+        updateOne(context, appWidgetManager, appWidgetId)
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         val e = prefs(context).edit()
-        appWidgetIds.forEach { e.remove(key(it)) }
+        appWidgetIds.forEach { id ->
+            e.remove(keyPid(id))
+            e.remove(keyMode(id))
+            e.remove(keyMin(id))
+        }
         e.apply()
     }
 
@@ -34,17 +53,27 @@ class TimerWidgetProvider : AppWidgetProvider() {
             ACTION_TOGGLE -> {
                 val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                 val pid = projectIdOf(context, widgetId)
-                if (pid > 0L) {
+                val p = if (pid > 0L) Repo.project(pid) else null
+                if (p == null) {
+                    // 没绑项目、或项目已被删除 → 让用户重新选
+                    try {
+                        context.startActivity(
+                            Intent(context, WidgetConfigActivity::class.java)
+                                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        )
+                    } catch (t: Throwable) {
+                    }
+                } else {
+                    val minutes = minutesFor(context, widgetId, p)
                     val running = Repo.running()
-                    val proj = Repo.project(pid)
-                    val minutes = proj?.widgetMinutes ?: 25
                     when {
-                        running != null && running.projectId == pid -> TimerService.stop(context)
+                        running != null && running.projectId == p.id -> TimerService.stop(context)
                         running != null -> {
                             TimerService.stop(context)
-                            TimerService.start(context, pid, minutes)
+                            TimerService.start(context, p.id, minutes)
                         }
-                        else -> TimerService.start(context, pid, minutes)
+                        else -> TimerService.start(context, p.id, minutes)
                     }
                 }
                 updateAll(context)
@@ -58,21 +87,46 @@ class TimerWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
     }
 
+    private fun isLarge(mgr: AppWidgetManager, widgetId: Int): Boolean {
+        return try {
+            val o = mgr.getAppWidgetOptions(widgetId)
+            val h = maxOf(
+                o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0),
+                o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+            )
+            h >= 130
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
     private fun updateOne(context: Context, mgr: AppWidgetManager, widgetId: Int) {
-        val views = RemoteViews(context.packageName, R.layout.widget_timer)
+        val large = isLarge(mgr, widgetId)
+        val views = RemoteViews(
+            context.packageName,
+            if (large) R.layout.widget_timer_large else R.layout.widget_timer
+        )
         val pid = projectIdOf(context, widgetId)
         val p = if (pid > 0L) Repo.project(pid) else null
         val running = Repo.running()
         val active = p != null && running != null && running.projectId == p.id
 
+        if (large) {
+            views.setViewVisibility(R.id.widget_badge, View.VISIBLE)
+            views.setTextViewText(R.id.widget_badge, if (p != null && p.name.isNotEmpty()) p.name.take(1) else "·")
+        }
+
         if (p == null) {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
-            views.setTextViewText(R.id.widget_name, "未选择项目")
+            views.setTextViewText(
+                R.id.widget_name,
+                if (pid > 0L) "项目已删除" else "未选择项目"
+            )
             views.setTextViewText(R.id.widget_time, "--")
-            views.setTextViewText(R.id.widget_hint, "删掉重放，先选一个项目")
+            views.setTextViewText(R.id.widget_hint, "点一下重新选择项目")
+            if (large) views.setTextViewText(R.id.widget_action, "选择项目")
         } else if (active && running != null) {
-            // 用系统 Chronometer 在桌面自己走秒，不需要我们频繁刷新
             views.setViewVisibility(R.id.widget_time, View.GONE)
             views.setViewVisibility(R.id.widget_chrono, View.VISIBLE)
             views.setChronometer(
@@ -84,18 +138,28 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(
                 R.id.widget_hint,
-                if (running.chimeFired) "已到时间 · 点停止"
-                else "计划 ${running.plannedMinutes} 分"
+                if (running.chimeFired) "已到时间 · 继续计时中" else "计划 ${running.plannedMinutes} 分"
             )
+            if (large) views.setTextViewText(R.id.widget_action, "■ 停止")
         } else {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
-            views.setTextViewText(R.id.widget_time, p.widgetMinutes.toString() + " 分")
-            views.setTextViewText(R.id.widget_hint, "点开始 · 再点停止")
+            views.setTextViewText(R.id.widget_time, minutesFor(context, widgetId, p).toString() + " 分")
+            views.setTextViewText(R.id.widget_hint, "点一下开始")
+            if (large) views.setTextViewText(R.id.widget_action, "▶ 开始")
         }
 
-        val pi = PendingIntent.getBroadcast(
+        val click = if (p == null) configIntent(context, widgetId) else toggleIntent(context, widgetId)
+        views.setOnClickPendingIntent(R.id.widget_root, click)
+        views.setOnClickPendingIntent(R.id.widget_cfg, configIntent(context, widgetId))
+        if (large) views.setOnClickPendingIntent(R.id.widget_action, click)
+
+        mgr.updateAppWidget(widgetId, views)
+    }
+
+    private fun toggleIntent(context: Context, widgetId: Int): PendingIntent =
+        PendingIntent.getBroadcast(
             context,
             100 + widgetId,
             Intent(context, TimerWidgetProvider::class.java)
@@ -103,35 +167,70 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        views.setOnClickPendingIntent(R.id.widget_root, pi)
-        mgr.updateAppWidget(widgetId, views)
-    }
+
+    private fun configIntent(context: Context, widgetId: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            500 + widgetId,
+            Intent(context, WidgetConfigActivity::class.java)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
     companion object {
         const val ACTION_TOGGLE = "com.xijie.focustimer.WIDGET_TOGGLE"
         const val ACTION_STATE_CHANGED = "com.xijie.focustimer.STATE_CHANGED"
         private const val PREFS = "widget_state"
 
+        const val MODE_LAST = "last"
+        const val MODE_DEFAULT = "default"
+        const val MODE_CUSTOM = "custom"
+
         private fun prefs(context: Context) =
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-        private fun key(widgetId: Int) = "w_" + widgetId
+        private fun keyPid(id: Int) = "w_" + id
+        private fun keyMode(id: Int) = "w_" + id + "_mode"
+        private fun keyMin(id: Int) = "w_" + id + "_min"
 
         fun projectIdOf(context: Context, widgetId: Int): Long =
-            prefs(context).getLong(key(widgetId), -1L)
+            prefs(context).getLong(keyPid(widgetId), -1L)
 
-        fun bindProject(context: Context, widgetId: Int, projectId: Long) {
-            prefs(context).edit().putLong(key(widgetId), projectId).apply()
+        fun timeModeOf(context: Context, widgetId: Int): String =
+            prefs(context).getString(keyMode(widgetId), MODE_LAST) ?: MODE_LAST
+
+        fun customMinutesOf(context: Context, widgetId: Int): Int =
+            prefs(context).getInt(keyMin(widgetId), 0)
+
+        fun setConfig(context: Context, widgetId: Int, projectId: Long, mode: String, customMinutes: Int) {
+            prefs(context).edit()
+                .putLong(keyPid(widgetId), projectId)
+                .putString(keyMode(widgetId), mode)
+                .putInt(keyMin(widgetId), customMinutes)
+                .apply()
+        }
+
+        /** 小部件点击时用多少分钟 */
+        fun minutesFor(context: Context, widgetId: Int, p: Project?): Int {
+            if (p == null) return 25
+            return when (timeModeOf(context, widgetId)) {
+                MODE_DEFAULT -> p.defaultMinutes
+                MODE_CUSTOM -> {
+                    val c = customMinutesOf(context, widgetId)
+                    if (c in 1..1440) c else p.widgetMinutes
+                }
+                else -> p.widgetMinutes
+            }
         }
 
         fun updateAll(context: Context) {
             val mgr = AppWidgetManager.getInstance(context) ?: return
             val ids = mgr.getAppWidgetIds(ComponentName(context, TimerWidgetProvider::class.java))
-            val provider = TimerWidgetProvider()
-            provider.onUpdate(context, mgr, ids)
+            TimerWidgetProvider().onUpdate(context, mgr, ids)
         }
 
-        /** 让所有小部件立刻刷新（计时状态变化时调用） */
+        /** 计时状态变化时让所有小部件刷新 */
         fun notifyChanged(context: Context) {
             try {
                 context.sendBroadcast(

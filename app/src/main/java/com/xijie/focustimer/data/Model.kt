@@ -21,6 +21,9 @@ data class Project(
             "ding" -> "叮"
             "bell" -> "钟"
             "bowl" -> "钵"
+            "muyu" -> "木鱼"
+            "qing" -> "磬"
+            "beep" -> "哔"
             "custom" -> "自定义"
             else -> "关闭"
         }

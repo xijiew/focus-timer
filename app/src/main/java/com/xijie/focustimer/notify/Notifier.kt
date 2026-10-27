@@ -124,12 +124,22 @@ object Notifier {
             .setContentText("如果你在锁屏上看到这一条，说明锁屏通知是通的")
             .setWhen(System.currentTimeMillis())
             .setUsesChronometer(true)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openIntent(ctx))
             .build()
         try {
             nm.notify(1200, n)
+        } catch (t: Throwable) {
+        }
+    }
+
+    /** 清掉自检用的测试通知 */
+    fun cancelTest(ctx: Context) {
+        try {
+            ctx.getSystemService(NotificationManager::class.java)?.cancel(1200)
         } catch (t: Throwable) {
         }
     }

@@ -1,6 +1,7 @@
 package com.xijie.focustimer.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,18 +16,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ import com.xijie.focustimer.util.Stats
 fun HomeScreen(
     version: Int,
     onOpen: (Long) -> Unit,
+    onEdit: (Long) -> Unit,
     onNew: () -> Unit,
     onBackup: () -> Unit
 ) {
@@ -55,9 +57,12 @@ fun HomeScreen(
     var projects by remember { mutableStateOf<List<Project>>(emptyList()) }
     var posWeek by remember { mutableLongStateOf(0L) }
     var negWeek by remember { mutableLongStateOf(0L) }
+    var refresh by remember { mutableIntStateOf(0) }
     var startTarget by remember { mutableStateOf<Project?>(null) }
+    var menuTarget by remember { mutableStateOf<Project?>(null) }
+    var deleteTarget by remember { mutableStateOf<Project?>(null) }
 
-    LaunchedEffect(version, tick / 30) {
+    LaunchedEffect(version, refresh, tick / 30) {
         val ps = Repo.projects()
         projects = ps
         val now = System.currentTimeMillis()
@@ -82,7 +87,7 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("专注计时", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            TextButton(onClick = onBackup) { Text("导出 / 导入") }
+            TextButton(onClick = onBackup) { Text("自检 / 备份") }
         }
 
         if (running != null) {
@@ -111,7 +116,11 @@ fun HomeScreen(
             ) {
                 Column {
                     Text("本周正面", style = MaterialTheme.typography.labelMedium)
-                    Text(Format.duration(posWeek), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        Format.duration(posWeek),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("本周负面", style = MaterialTheme.typography.labelMedium)
@@ -120,13 +129,21 @@ fun HomeScreen(
             }
         }
 
+        Text(
+            "点项目开始计时 · 长按可编辑或删除",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF999999),
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(projects) { p ->
                 ProjectRow(
                     p = p,
                     running = running != null && running.projectId == p.id,
                     onClick = { onOpen(p.id) },
-                    onStart = { startTarget = p }
+                    onStart = { startTarget = p },
+                    onLongClick = { menuTarget = p }
                 )
             }
             item { Spacer(Modifier.height(8.dp)) }
@@ -150,11 +167,70 @@ fun HomeScreen(
             }
         )
     }
+
+    val menu = menuTarget
+    if (menu != null) {
+        AlertDialog(
+            onDismissRequest = { menuTarget = null },
+            title = { Text(menu.name) },
+            text = { Text("要做什么？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    menuTarget = null
+                    onEdit(menu.id)
+                }) { Text("编辑项目") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        menuTarget = null
+                        deleteTarget = menu
+                    }) { Text("删除", color = Color(0xFFC62828)) }
+                    TextButton(onClick = { menuTarget = null }) { Text("取消") }
+                }
+            }
+        )
+    }
+
+    val del = deleteTarget
+    if (del != null) {
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("删除「" + del.name + "」？") },
+            text = { Text("这个项目的所有计时记录也会一起删掉，删了找不回来。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    Repo.deleteProject(del.id)
+                    deleteTarget = null
+                    refresh++
+                    // 让桌面上绑了这个项目的小部件立刻变成“项目已删除，点一下重新选择”
+                    com.xijie.focustimer.widget.TimerWidgetProvider.notifyChanged(ctx)
+                }) { Text("删除", color = Color(0xFFC62828)) }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } }
+        )
+    }
 }
 
 @Composable
-private fun ProjectRow(p: Project, running: Boolean, onClick: () -> Unit, onStart: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+private fun ProjectRow(
+    p: Project,
+    running: Boolean,
+    onClick: () -> Unit,
+    onStart: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .pointerInput(p.id) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongClick() }
+                )
+            }
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -168,7 +244,7 @@ private fun ProjectRow(p: Project, running: Boolean, onClick: () -> Unit, onStar
             Column(modifier = Modifier.weight(1f)) {
                 Text(p.name, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    (if (p.negative) "负面" else "正面") + " · 上次 " + p.widgetMinutes + " 分钟 · 提示音 " + p.soundLabel,
+                    (if (p.negative) "负面" else "正面") + " · 上次 " + p.widgetMinutes + " 分钟 · " + p.soundLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF777777)
                 )
@@ -178,14 +254,17 @@ private fun ProjectRow(p: Project, running: Boolean, onClick: () -> Unit, onStar
                 Spacer(Modifier.width(8.dp))
             }
             TextButton(onClick = onStart) { Text("开始") }
-            TextButton(onClick = onClick) { Text("详情") }
         }
     }
 }
 
 @Composable
 private fun StartDialog(project: Project, onDismiss: () -> Unit, onStart: (Int) -> Unit) {
-    var minutes by remember { mutableStateOf(project.defaultMinutes.toString()) }
+    var minutes by remember {
+        mutableStateOf(
+            (if (project.lastMinutes in 1..1440) project.lastMinutes else project.defaultMinutes).toString()
+        )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("开始专注 · " + project.name) },

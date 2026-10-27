@@ -45,7 +45,12 @@ private val PALETTE = listOf(
 )
 
 @Composable
-fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit) {
+fun ProjectEditScreen(
+    projectId: Long,
+    onDone: () -> Unit,
+    onCancel: () -> Unit,
+    onDeleted: () -> Unit
+) {
     val ctx = LocalContext.current
     val existing = remember(projectId) { if (projectId > 0L) Repo.project(projectId) else null }
 
@@ -133,8 +138,13 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
             SoundButton("钵", sound == "bowl") { sound = "bowl" }
         }
         Row(modifier = Modifier.padding(top = 6.dp)) {
+            SoundButton("木鱼", sound == "muyu") { sound = "muyu" }
+            SoundButton("磬", sound == "qing") { sound = "qing" }
+            SoundButton("哔", sound == "beep") { sound = "beep" }
+        }
+        Row(modifier = Modifier.padding(top = 6.dp)) {
             SoundButton("自定义", sound == "custom") { sound = "custom" }
-            SoundButton("关闭", sound == "none") { sound = "none" }
+            SoundButton("关闭", sound = "none") { sound = "none" }
         }
 
         if (sound == "custom") {
@@ -212,7 +222,7 @@ fun ProjectEditScreen(projectId: Long, onDone: () -> Unit, onCancel: () -> Unit)
             OutlinedButton(
                 onClick = {
                     Repo.deleteProject(existing.id)
-                    onDone()
+                    onDeleted()
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
             ) { Text("删除这个项目（含它的记录）") }

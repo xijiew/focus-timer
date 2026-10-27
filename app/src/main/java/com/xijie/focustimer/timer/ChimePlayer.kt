@@ -12,6 +12,9 @@ object ChimePlayer {
         "ding" -> R.raw.chime_ding
         "bell" -> R.raw.chime_bell
         "bowl" -> R.raw.chime_bowl
+        "muyu" -> R.raw.chime_muyu
+        "qing" -> R.raw.chime_qing
+        "beep" -> R.raw.chime_beep
         else -> 0
     }
 

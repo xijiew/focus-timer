@@ -27,6 +27,31 @@ object Stats {
 
     fun sumMs(list: List<FocusSession>): Long = list.sumOf { it.durationMs }
 
+    /** 某个相对周的周一 00:00（offsetWeeks=0 本周，1 上周） */
+    fun weekStartOf(offsetWeeks: Int): Long =
+        LocalDate.now(zone)
+            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .minusWeeks(offsetWeeks.toLong())
+            .atStartOfDay(zone).toInstant().toEpochMilli()
+
+    /** 连续打卡天数：今天或昨天有记录才算在连着；没有记录返回 0 */
+    fun streakDays(sessions: List<FocusSession>): Int {
+        val days = byDate(sessions).keys
+        if (days.isEmpty()) return 0
+        val today = LocalDate.now(zone)
+        var d = when {
+            days.contains(today) -> today
+            days.contains(today.minusDays(1)) -> today.minusDays(1)
+            else -> return 0
+        }
+        var n = 0
+        while (days.contains(d)) {
+            n++
+            d = d.minusDays(1)
+        }
+        return n
+    }
+
     fun byDate(list: List<FocusSession>): Map<LocalDate, Long> {
         val map = HashMap<LocalDate, Long>()
         list.forEach { s ->

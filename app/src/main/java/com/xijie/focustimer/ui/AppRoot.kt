@@ -41,6 +41,7 @@ fun AppRoot() {
         is Screen.Home -> HomeScreen(
             version = version,
             onOpen = { push(Screen.Detail(it)) },
+            onEdit = { push(Screen.Edit(it)) },
             onNew = { push(Screen.Edit(0L)) },
             onBackup = { push(Screen.Backup) }
         )
@@ -56,7 +57,11 @@ fun AppRoot() {
                     resetTo(Screen.Home)
                 }
             },
-            onCancel = { pop() }
+            onCancel = { pop() },
+            onDeleted = {
+                version++
+                resetTo(Screen.Home)
+            }
         )
 
         is Screen.Detail -> ProjectDetailScreen(

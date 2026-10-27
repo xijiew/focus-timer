@@ -110,7 +110,8 @@ fun BackupScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "锁屏看不到计时，通常是系统里“锁屏通知”被关掉了，或锁屏上设成了隐藏内容。",
+                    "小米/HyperOS 的正确设置（实测有效）：设置 → 通知与控制中心 → 应用通知 → 专注计时 → " +
+                        "通知类别 → 计时中 → 锁定屏幕 → 选“显示通知及其内容”。",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF888888),
                     modifier = Modifier.padding(top = 6.dp)
@@ -147,7 +148,11 @@ fun BackupScreen(onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = { Notifier.testOngoing(ctx) },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                ) { Text("发一条测试通知（用于验证锁屏）") }
+                ) { Text("发一条测试通知（常驻形态，用于验证锁屏）") }
+                OutlinedButton(
+                    onClick = { Notifier.cancelTest(ctx) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) { Text("清掉测试通知") }
             }
         }
 
