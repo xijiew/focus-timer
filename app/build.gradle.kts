@@ -14,11 +14,30 @@ android {
         applicationId = "com.xijie.focustimer"
         minSdk = 29
         targetSdk = 36
-        versionCode = 15
-        versionName = "2.4"
+        versionCode = 16
+        versionName = "2.5"
+    }
+
+    /**
+     * 固定签名（解决"每次装的 APK 签名不同、不能覆盖升级"）。
+     * CI 每次都是全新虚拟机，AGP 自动生成的 debug.keystore 每次都不一样，
+     * 所以把 keystore.p12 放进仓库、始终用它签名。
+     * 这只是自用 debug 签名，与任何账号凭据无关。
+     */
+    signingConfigs {
+        create("fixed") {
+            storeFile = rootProject.file("keystore.p12")
+            storePassword = "focus-timer-2026"
+            keyAlias = "focus-timer"
+            keyPassword = "focus-timer-2026"
+            storeType = "PKCS12"
+        }
     }
 
     buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("fixed")
+        }
         release {
             isMinifyEnabled = false
         }

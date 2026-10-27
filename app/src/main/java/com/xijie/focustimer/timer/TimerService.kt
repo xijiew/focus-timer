@@ -5,9 +5,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -31,12 +34,32 @@ class TimerService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var ticker: Job? = null
+    private var power: PowerManager? = null
+    private var screenReceiver: BroadcastReceiver? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         Notifier.ensureChannels(this)
+        power = getSystemService(PowerManager::class.java)
+        // 亮屏/解锁时立刻恢复每秒走字（息屏期间小部件看不见，不必刷）
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
+                if (power?.isInteractive == true) {
+                    if (Repo.running() != null) startTicker()
+                    TimerWidgetProvider.updateAll(this@TimerService)
+                }
+            }
+        }
+        screenReceiver = r
+        try {
+            registerReceiver(r, IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            })
+        } catch (t: Throwable) {
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -167,19 +190,27 @@ class TimerService : Service() {
             var n = 0
             while (true) {
                 val r = Repo.running() ?: break
-                // 桌面小部件的数字靠这里每秒刷新（不再用 Chronometer：MIUI 上改不动字号/颜色）
+                val screenOn = power?.isInteractive ?: true
                 if (!r.paused) {
-                    TimerWidgetProvider.updateAll(this@TimerService)
-                    if (n % 30 == 0) {
-                        try {
-                            Notifier.updateOngoing(this@TimerService, r, Repo.elapsedMs(r), r.chimeFired)
-                        } catch (t: Throwable) {
-                        }
+                    if (screenOn) {
+                        // 亮屏：小部件数字每秒刷新（人看得见才刷）
+                        TimerWidgetProvider.updateAll(this@TimerService)
+                        if (n % 30 == 0) safeNotify(r)
+                    } else if (n % 30 == 0) {
+                        // 息屏：只保留 30 秒一次的通知刷新（通知走系统 Chronometer）
+                        safeNotify(r)
                     }
                 }
                 n++
-                delay(1000L)
+                delay(if (screenOn) 1000L else 30_000L)
             }
+        }
+    }
+
+    private fun safeNotify(r: Repo.Running) {
+        try {
+            Notifier.updateOngoing(this, r, Repo.elapsedMs(r), r.chimeFired)
+        } catch (t: Throwable) {
         }
     }
 
@@ -262,6 +293,12 @@ class TimerService : Service() {
     }
 
     override fun onDestroy() {
+        screenReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (e: Throwable) {
+            }
+        }
         ticker?.cancel()
         scope.cancel()
         super.onDestroy()
