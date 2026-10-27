@@ -74,7 +74,6 @@ object Notifier {
             .setContentText(text)
             .setWhen(r.startWall)
             .setUsesChronometer(true)
-            .setChronometerCountUp(true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
