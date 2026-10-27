@@ -34,15 +34,26 @@ jobs:
           awk '/\* What went wrong/{f=1} f' build.log | head -30 >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: 重命名为带版本号的 APK
+        run: |
+          V=$(grep -m1 -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          C=$(grep -m1 -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          echo "版本 $V ($C)"
+          mkdir -p out
+          for f in app/build/outputs/apk/debug/*.apk; do
+            cp "$f" "out/focus-timer-v${V}-c${C}-debug.apk"
+          done
+          ls -lh out
+
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: focus-timer-apk
+          path: out/*.apk
           if-no-files-found: warn
 
       - name: 结果摘要
         if: always()
         run: |
           echo "### 产物" >> "$GITHUB_STEP_SUMMARY"
-          ls -lh app/build/outputs/apk/debug/ >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "（无产物）" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh out/ >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "（无产物）" >> "$GITHUB_STEP_SUMMARY"
