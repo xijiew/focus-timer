@@ -17,22 +17,27 @@ import com.xijie.focustimer.util.Stats
 object Notifier {
 
     // v2：通知渠道创建后不可修改，改"锁屏可见"必须换新 id
-    const val CH_ONGOING = "ongoing_v2"
+    const val CH_ONGOING = "ongoing_v3"
     const val CH_ALERT = "alert"
     const val ONGOING_ID = 1001
     private const val ALERT_ID = 1100
 
     fun ensureChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
-        // 清掉旧渠道（v1 的 ongoing 不能改属性了）
-        try {
-            nm.deleteNotificationChannel("ongoing")
-        } catch (t: Throwable) {
+        // 清掉旧渠道（渠道创建后属性不能改，只能换 id 重建）
+        for (old in listOf("ongoing", "ongoing_v2")) {
+            try {
+                nm.deleteNotificationChannel(old)
+            } catch (t: Throwable) {
+            }
         }
         if (nm.getNotificationChannel(CH_ONGOING) == null) {
-            val ch = NotificationChannel(CH_ONGOING, "计时中", NotificationManager.IMPORTANCE_LOW)
+            // 注意：不能用 IMPORTANCE_LOW —— 低重要性会被系统归入"静默通知"，
+            // 锁屏上默认折叠/不显示。用 DEFAULT + 关闭声音，才能正常显示在锁屏。
+            val ch = NotificationChannel(CH_ONGOING, "计时中", NotificationManager.IMPORTANCE_DEFAULT)
             ch.setShowBadge(false)
             ch.setSound(null, null)
+            ch.enableVibration(false)
             ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             nm.createNotificationChannel(ch)
         }
@@ -76,8 +81,8 @@ object Notifier {
             .setUsesChronometer(true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openIntent(ctx))
             .addAction(0, "停止并保存", stopIntent(ctx))
             .build()

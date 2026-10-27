@@ -83,8 +83,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_name, p.name)
             views.setTextViewText(
                 R.id.widget_hint,
-                if (running.chimeFired) "已到时间 · 继续计时中 · 点一下停止"
-                else "计时中 · 计划 ${running.plannedMinutes} 分 · 点一下停止"
+                if (running.chimeFired) "已到时间，继续计时 · 点停止"
+                else "计划 ${running.plannedMinutes} 分 · 点停止"
             )
         } else {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
