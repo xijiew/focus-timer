@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "### 编译报错（请把本段整段复制发给助手）" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          grep -E "^e: |^w: .*error|error:|FAILURE:|What went wrong|Caused by:|> Task .* FAILED|Could not|Unresolved" build.log | head -80 >> "$GITHUB_STEP_SUMMARY" || true
+                    tail -n 150 build.log >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: 上传 APK
