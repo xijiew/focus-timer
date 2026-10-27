@@ -99,10 +99,16 @@ fun HomeScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    if (running.chimeFired) {
+                    if (running.paused) {
+                        Text("已暂停，时间已定格", style = MaterialTheme.typography.bodySmall)
+                    } else if (running.chimeFired) {
                         Text("已响过提示，正在继续计时", style = MaterialTheme.typography.bodySmall)
                     }
                     Row(modifier = Modifier.padding(top = 8.dp)) {
+                        Button(onClick = {
+                            if (running.paused) TimerService.resume(ctx) else TimerService.pause(ctx)
+                        }) { Text(if (running.paused) "继续" else "暂停") }
+                        Spacer(Modifier.width(8.dp))
                         Button(onClick = { TimerService.stop(ctx) }) { Text("停止并保存") }
                     }
                 }

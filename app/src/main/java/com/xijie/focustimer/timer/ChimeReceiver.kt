@@ -37,7 +37,7 @@ class ChimeReceiver : BroadcastReceiver() {
             }
         }
 
-        val elapsed = (SystemClock.elapsedRealtime() - r.startElapsed).coerceAtLeast(0L)
+        val elapsed = Repo.elapsedMs(r)
         Notifier.updateOngoing(app, r, elapsed, timeUp = true)
         TimerWidgetProvider.notifyChanged(app)
     }

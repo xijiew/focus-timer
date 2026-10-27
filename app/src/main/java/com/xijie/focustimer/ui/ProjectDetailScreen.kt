@@ -127,7 +127,10 @@ fun ProjectDetailScreen(
             Spacer(Modifier.width(8.dp))
             Text(p.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            if (isRunning) {
+            if (isRunning && running != null) {
+                TextButton(onClick = {
+                    if (running.paused) TimerService.resume(ctx) else TimerService.pause(ctx)
+                }) { Text(if (running.paused) "继续" else "暂停") }
                 Button(onClick = { TimerService.stop(ctx) }) { Text("停止") }
             } else {
                 Button(onClick = { showStart = true }) { Text("开始") }

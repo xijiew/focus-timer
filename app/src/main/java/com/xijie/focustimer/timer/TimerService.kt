@@ -50,6 +50,14 @@ class TimerService : Service() {
                 finish()
                 return START_NOT_STICKY
             }
+            ACTION_PAUSE -> {
+                pause()
+                return START_STICKY
+            }
+            ACTION_RESUME -> {
+                resume()
+                return START_STICKY
+            }
             else -> {
                 val r = Repo.running()
                 if (r != null) {
@@ -86,12 +94,48 @@ class TimerService : Service() {
             plannedMinutes = minutes,
             sound = p.sound,
             soundUri = p.soundUri,
-            chimeFired = false
+            chimeFired = false,
+            accumMs = 0L,
+            paused = false
         )
         Repo.saveRunning(running)
         startAsForeground(running)
         scheduleChime(running.startWall + minutes * 60_000L, p.name)
         startTicker()
+        TimerWidgetProvider.notifyChanged(this)
+    }
+
+    /** 暂停：把当前这一段累加进去，时间停住，闹钟取消 */
+    private fun pause() {
+        val r = Repo.running() ?: return
+        if (r.paused) return
+        val e = Repo.elapsedMs(r)
+        Repo.saveRunning(r.copy(accumMs = e, startElapsed = SystemClock.elapsedRealtime(), paused = true))
+        cancelChime()
+        val nr = Repo.running() ?: return
+        try {
+            Notifier.updateOngoing(this, nr, e, nr.chimeFired)
+        } catch (t: Throwable) {
+        }
+        TimerWidgetProvider.notifyChanged(this)
+    }
+
+    /** 继续：重新开始走秒，并按剩余时间重排到点闹钟 */
+    private fun resume() {
+        val r = Repo.running() ?: return
+        if (!r.paused) return
+        Repo.saveRunning(r.copy(startElapsed = SystemClock.elapsedRealtime(), paused = false))
+        val nr = Repo.running() ?: return
+        val elapsed = Repo.elapsedMs(nr)
+        val remaining = nr.plannedMinutes * 60_000L - elapsed
+        if (!nr.chimeFired && remaining > 0L) {
+            scheduleChime(System.currentTimeMillis() + remaining, nr.projectName)
+        }
+        startTicker()
+        try {
+            Notifier.updateOngoing(this, nr, elapsed, nr.chimeFired)
+        } catch (t: Throwable) {
+        }
         TimerWidgetProvider.notifyChanged(this)
     }
 
@@ -205,6 +249,8 @@ class TimerService : Service() {
         const val ACTION_START = "com.xijie.focustimer.action.START"
         const val ACTION_STOP = "com.xijie.focustimer.action.STOP"
         const val ACTION_CHIME = "com.xijie.focustimer.action.CHIME"
+        const val ACTION_PAUSE = "com.xijie.focustimer.action.PAUSE"
+        const val ACTION_RESUME = "com.xijie.focustimer.action.RESUME"
         const val EXTRA_PROJECT_ID = "project_id"
         const val EXTRA_MINUTES = "minutes"
         private const val REQ_CHIME = 9001
@@ -219,6 +265,20 @@ class TimerService : Service() {
                 ContextCompat.startForegroundService(ctx, i)
             } catch (t: Throwable) {
                 // Android 12+ 后台限制：从桌面小部件点击属于用户交互，通常允许；失败则忽略
+            }
+        }
+
+        fun pause(ctx: Context) {
+            try {
+                ctx.startService(Intent(ctx, TimerService::class.java).setAction(ACTION_PAUSE))
+            } catch (t: Throwable) {
+            }
+        }
+
+        fun resume(ctx: Context) {
+            try {
+                ctx.startService(Intent(ctx, TimerService::class.java).setAction(ACTION_RESUME))
+            } catch (t: Throwable) {
             }
         }
 

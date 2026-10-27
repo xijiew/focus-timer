@@ -49,6 +49,15 @@ object Notifier {
         }
     }
 
+    private fun pauseIntent(ctx: Context, resume: Boolean): PendingIntent =
+        PendingIntent.getService(
+            ctx,
+            if (resume) 2004 else 2005,
+            Intent(ctx, TimerService::class.java)
+                .setAction(if (resume) TimerService.ACTION_RESUME else TimerService.ACTION_PAUSE),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
     private fun stopIntent(ctx: Context): PendingIntent =
         PendingIntent.getService(
             ctx, 2002,
@@ -68,24 +77,29 @@ object Notifier {
      * 由系统每秒自己刷新，锁屏上也实时走，不用我们一秒一次地唤醒 CPU。
      */
     fun ongoing(ctx: Context, r: Repo.Running, elapsedMs: Long, timeUp: Boolean): Notification {
-        val text = if (timeUp) {
-            "已到时间 · 继续计时中（点停止结束）"
-        } else {
-            "计划 " + r.plannedMinutes + " 分钟 · 计时中"
+        val text = when {
+            r.paused -> "已暂停 · " + Format.clock(elapsedMs)
+            timeUp -> "已到时间 · 继续计时中（点停止结束）"
+            else -> "计划 " + r.plannedMinutes + " 分钟 · 计时中"
         }
-        return NotificationCompat.Builder(ctx, CH_ONGOING)
+        val b = NotificationCompat.Builder(ctx, CH_ONGOING)
             .setSmallIcon(R.drawable.ic_stat_timer)
             .setContentTitle(r.projectName)
             .setContentText(text)
-            .setWhen(r.startWall)
-            .setUsesChronometer(true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openIntent(ctx))
-            .addAction(0, "停止并保存", stopIntent(ctx))
-            .build()
+        if (r.paused) {
+            b.setShowWhen(false)
+        } else {
+            b.setWhen(r.startWall)
+            b.setUsesChronometer(true)
+        }
+        b.addAction(0, if (r.paused) "继续" else "暂停", pauseIntent(ctx, r.paused))
+        b.addAction(0, "停止并保存", stopIntent(ctx))
+        return b.build()
     }
 
     fun updateOngoing(ctx: Context, r: Repo.Running, elapsedMs: Long, timeUp: Boolean) {

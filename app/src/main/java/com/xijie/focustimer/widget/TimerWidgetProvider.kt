@@ -16,6 +16,7 @@ import com.xijie.focustimer.R
 import com.xijie.focustimer.data.Project
 import com.xijie.focustimer.data.Repo
 import com.xijie.focustimer.timer.TimerService
+import com.xijie.focustimer.util.Format
 
 /** 与项目编辑页的 PALETTE 顺序保持一致 */
 private val PALETTE = intArrayOf(
@@ -100,6 +101,19 @@ class TimerWidgetProvider : AppWidgetProvider() {
                 updateAll(context)
                 return
             }
+            ACTION_PAUSE_TOGGLE -> {
+                val r = Repo.running()
+                if (r != null) {
+                    if (r.paused) TimerService.resume(context) else TimerService.pause(context)
+                }
+                updateAll(context)
+                return
+            }
+            ACTION_STOP_NOW -> {
+                TimerService.stop(context)
+                updateAll(context)
+                return
+            }
             ACTION_STATE_CHANGED -> {
                 updateAll(context)
                 return
@@ -149,8 +163,23 @@ class TimerWidgetProvider : AppWidgetProvider() {
         views.setTextColor(R.id.widget_time, if (night) 0xFFF2F2F2.toInt() else 0xFF1A1A1A.toInt())
         views.setTextColor(R.id.widget_chrono, if (night) 0xFFF2F2F2.toInt() else 0xFF1A1A1A.toInt())
         views.setTextColor(R.id.widget_hint, if (night) 0xFF808080.toInt() else 0xFFB3B3B3.toInt())
-        views.setViewVisibility(R.id.widget_hint, if (large) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_action, if (large) View.VISIBLE else View.GONE)
+        val showButtons = large
+        views.setViewVisibility(R.id.widget_hint, if (showButtons) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_action, if (showButtons) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_stop, View.GONE)
+        views.setTextColor(R.id.widget_action_text, 0xFFFFFFFF.toInt())
+        views.setTextColor(
+            R.id.widget_stop_text,
+            if (night) 0xFFE8E8E8.toInt() else 0xFF4A4A4A.toInt()
+        )
+        views.setInt(
+            R.id.widget_stop, "setBackgroundResource",
+            if (night) R.drawable.pill_gray_dark else R.drawable.pill_gray_light
+        )
+        views.setImageViewResource(
+            R.id.widget_stop_icon,
+            if (night) R.drawable.ic_stop_light else R.drawable.ic_stop_dark
+        )
 
         val pid = projectIdOf(context, widgetId)
         val p = if (pid > 0L) Repo.project(pid) else null
@@ -169,36 +198,53 @@ class TimerWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, if (pid > 0L) "项目已删除" else "未选择项目")
             views.setTextViewText(R.id.widget_time, "--")
-            views.setTextViewText(R.id.widget_hint, if (large) "点一下重新选择项目" else "")
-            if (large) setAction(views, R.drawable.ic_play, "选择项目", PILL_RES[colorIdx])
+            views.setTextViewText(R.id.widget_hint, "点一下重新选择项目")
+            setAction(views, R.drawable.ic_play, "选择项目", PILL_RES[colorIdx])
         } else if (active && running != null) {
-            views.setViewVisibility(R.id.widget_time, View.GONE)
-            views.setViewVisibility(R.id.widget_chrono, View.VISIBLE)
-            views.setChronometer(
-                R.id.widget_chrono,
-                SystemClock.elapsedRealtime() - Repo.elapsedMs(running),
-                null,
-                true
-            )
             views.setTextViewText(R.id.widget_name, p.name)
-            views.setTextViewText(
-                R.id.widget_hint,
-                if (!large) "" else if (running.chimeFired) "已响过 · 继续计时" else "计划 ${running.plannedMinutes} 分"
-            )
-            if (large) setAction(views, R.drawable.ic_stop, "停止", R.drawable.pill_bg)
+            if (running.paused) {
+                // 暂停中：时间定格，不再用秒表
+                views.setViewVisibility(R.id.widget_chrono, View.GONE)
+                views.setViewVisibility(R.id.widget_time, View.VISIBLE)
+                views.setTextViewText(R.id.widget_time, Format.clock(Repo.elapsedMs(running)))
+                views.setTextViewText(R.id.widget_hint, "已暂停")
+                setAction(views, R.drawable.ic_play, "继续", R.drawable.pill_bg)
+            } else {
+                views.setViewVisibility(R.id.widget_time, View.GONE)
+                views.setViewVisibility(R.id.widget_chrono, View.VISIBLE)
+                views.setChronometer(
+                    R.id.widget_chrono,
+                    SystemClock.elapsedRealtime() - Repo.elapsedMs(running),
+                    null,
+                    true
+                )
+                views.setTextViewText(
+                    R.id.widget_hint,
+                    if (running.chimeFired) "已响过 · 继续计时" else "计划 ${running.plannedMinutes} 分"
+                )
+                setAction(views, R.drawable.ic_pause, "暂停", R.drawable.pill_bg)
+            }
+            views.setTextViewText(R.id.widget_stop_text, "停止")
+            views.setViewVisibility(R.id.widget_stop, if (showButtons) View.VISIBLE else View.GONE)
         } else {
             views.setViewVisibility(R.id.widget_chrono, View.GONE)
             views.setViewVisibility(R.id.widget_time, View.VISIBLE)
             views.setTextViewText(R.id.widget_name, p.name)
             val m = minutesFor(context, widgetId, p)
-            views.setTextViewText(R.id.widget_time, if (large) "00:00" else m.toString() + " 分")
+            views.setTextViewText(R.id.widget_time, if (showButtons) "00:00" else m.toString() + " 分")
             views.setTextViewText(R.id.widget_hint, "")
-            if (large) setAction(views, R.drawable.ic_play, "开始", PILL_RES[colorIdx])
+            setAction(views, R.drawable.ic_play, "开始", PILL_RES[colorIdx])
         }
 
         val click = if (p == null) configIntent(context, widgetId) else toggleIntent(context, widgetId)
+        val actionClick = when {
+            p == null -> configIntent(context, widgetId)
+            active -> pauseIntent(context, widgetId)
+            else -> toggleIntent(context, widgetId)
+        }
         views.setOnClickPendingIntent(R.id.widget_root, click)
-        views.setOnClickPendingIntent(R.id.widget_action, click)
+        views.setOnClickPendingIntent(R.id.widget_action, actionClick)
+        views.setOnClickPendingIntent(R.id.widget_stop, stopIntent(context, widgetId))
         mgr.updateAppWidget(widgetId, views)
     }
 
@@ -223,6 +269,26 @@ class TimerWidgetProvider : AppWidgetProvider() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+    private fun pauseIntent(context: Context, widgetId: Int): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            300 + widgetId,
+            Intent(context, TimerWidgetProvider::class.java)
+                .setAction(ACTION_PAUSE_TOGGLE)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+    private fun stopIntent(context: Context, widgetId: Int): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            400 + widgetId,
+            Intent(context, TimerWidgetProvider::class.java)
+                .setAction(ACTION_STOP_NOW)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
     private fun configIntent(context: Context, widgetId: Int): PendingIntent =
         PendingIntent.getActivity(
             context,
@@ -236,6 +302,8 @@ class TimerWidgetProvider : AppWidgetProvider() {
     companion object {
         const val ACTION_TOGGLE = "com.xijie.focustimer.WIDGET_TOGGLE"
         const val ACTION_STATE_CHANGED = "com.xijie.focustimer.STATE_CHANGED"
+        const val ACTION_PAUSE_TOGGLE = "com.xijie.focustimer.WIDGET_PAUSE"
+        const val ACTION_STOP_NOW = "com.xijie.focustimer.WIDGET_STOP"
         private const val PREFS = "widget_state"
 
         const val MODE_LAST = "last"

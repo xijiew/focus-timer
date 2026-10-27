@@ -41,7 +41,10 @@ object Repo {
         val plannedMinutes: Int,
         val sound: String,
         val soundUri: String,
-        val chimeFired: Boolean
+        val chimeFired: Boolean,
+        // 暂停支持：accumMs 是之前累计的时长；paused=true 时时间不再走
+        val accumMs: Long = 0L,
+        val paused: Boolean = false
     )
 
     fun running(): Running? {
@@ -56,7 +59,9 @@ object Repo {
             plannedMinutes = prefs.getInt("run_planned", 0),
             sound = prefs.getString("run_sound", "bell") ?: "bell",
             soundUri = prefs.getString("run_soundUri", "") ?: "",
-            chimeFired = prefs.getBoolean("run_chime", false)
+            chimeFired = prefs.getBoolean("run_chime", false),
+            accumMs = prefs.getLong("run_accum", 0L),
+            paused = prefs.getBoolean("run_paused", false)
         )
     }
 
@@ -71,6 +76,8 @@ object Repo {
             .putString("run_sound", r.sound)
             .putString("run_soundUri", r.soundUri)
             .putBoolean("run_chime", r.chimeFired)
+            .putLong("run_accum", r.accumMs)
+            .putBoolean("run_paused", r.paused)
             .apply()
     }
 
@@ -82,7 +89,10 @@ object Repo {
         prefs.edit().clear().apply()
     }
 
-    fun elapsedMs(r: Running): Long = (SystemClock.elapsedRealtime() - r.startElapsed).coerceAtLeast(0L)
+    fun elapsedMs(r: Running): Long {
+        val seg = if (r.paused) 0L else (SystemClock.elapsedRealtime() - r.startElapsed).coerceAtLeast(0L)
+        return r.accumMs + seg
+    }
 
     // ---------- 提醒去重 ----------
     fun warned(key: String): Boolean = prefs.getBoolean("warn_$key", false)
