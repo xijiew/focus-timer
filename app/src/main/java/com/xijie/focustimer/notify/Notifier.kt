@@ -73,30 +73,28 @@ object Notifier {
         )
 
     /**
-     * 用系统自带的计时器（setUsesChronometer）显示已用时长：
-     * 由系统每秒自己刷新，锁屏上也实时走，不用我们一秒一次地唤醒 CPU。
+     * 通知第二行直接显示实时计时时长（用户要求：比标题右边那个系统小计时器更大更清楚）。
+     * 时长由前台服务刷新（亮屏每秒、息屏 30 秒），不再用 setUsesChronometer。
      */
     fun ongoing(ctx: Context, r: Repo.Running, elapsedMs: Long, timeUp: Boolean): Notification {
-        val text = when {
-            r.paused -> "已暂停 · " + Format.clock(elapsedMs)
-            timeUp -> "已到时间 · 继续计时中（点停止结束）"
-            else -> "计划 " + r.plannedMinutes + " 分钟 · 计时中"
+        val timeText = Format.clock(elapsedMs)
+        val sub = when {
+            r.paused -> "已暂停"
+            timeUp -> "已到时间 · 继续计时中"
+            else -> "计划 " + r.plannedMinutes + " 分"
         }
         val b = NotificationCompat.Builder(ctx, CH_ONGOING)
             .setSmallIcon(R.drawable.ic_stat_timer)
             .setContentTitle(r.projectName)
-            .setContentText(text)
+            .setContentText(timeText)
+            .setSubText(sub)
+            .setShowWhen(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openIntent(ctx))
-        if (r.paused) {
-            b.setShowWhen(false)
-        } else {
-            b.setWhen(r.startWall)
-            b.setUsesChronometer(true)
-        }
+            .setStyle(NotificationCompat.BigTextStyle().bigText(timeText))
         b.addAction(0, if (r.paused) "继续" else "暂停", pauseIntent(ctx, r.paused))
         b.addAction(0, "停止并保存", stopIntent(ctx))
         return b.build()

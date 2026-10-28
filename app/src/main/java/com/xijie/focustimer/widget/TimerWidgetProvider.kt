@@ -15,6 +15,7 @@ import com.xijie.focustimer.R
 import com.xijie.focustimer.data.Project
 import com.xijie.focustimer.data.Repo
 import com.xijie.focustimer.timer.TimerService
+import com.xijie.focustimer.ui.MainActivity
 import com.xijie.focustimer.util.Format
 
 /** 与项目编辑页的 PALETTE 顺序保持一致 */
@@ -39,13 +40,15 @@ private fun paletteIndex(color: Int): Int {
 }
 
 /**
- * 桌面小部件：
- * - 放置/点击齿轮时配置项目与时长来源
- * - 点一下开始、再点一下停止，不打开 App
- * - 支持 2x1 与 2x2（按系统给的尺寸自动换布局）
- * - 绑定的项目被删除后，点一下会弹出重新选择项目
+ * 桌面小部件基类。
+ * - 2×1 用本类（size 自适应：被用户拉大也能撑成 2×2 版式）
+ * - 2×2 用子类 [TimerWidget2Provider]（尺寸固定大号，桌面小部件面板里可直接选）
+ * 交互：只有胶囊按钮有功能，点时长/项目名等空白处＝打开 App。
  */
-class TimerWidgetProvider : AppWidgetProvider() {
+open class TimerWidgetProvider : AppWidgetProvider() {
+
+    /** 2×2 专用提供者覆写为 true */
+    open val forceLarge: Boolean = false
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         appWidgetIds.forEach { updateOne(context, appWidgetManager, it) }
@@ -138,29 +141,33 @@ class TimerWidgetProvider : AppWidgetProvider() {
     }
 
     private fun updateOne(context: Context, mgr: AppWidgetManager, widgetId: Int) {
-        val large = isLarge(mgr, widgetId)
+        val large = forceLarge || isLarge(mgr, widgetId)
         val night = isNight(context)
 
         val pid = projectIdOf(context, widgetId)
         val p = if (pid > 0L) Repo.project(pid) else null
         val running = Repo.running()
         val active = p != null && running != null && running.projectId == p.id
-        // 空闲与运行用两套布局：布局 id 不同会强制桌面重新 inflate，
-        // 避免“隐藏过的按钮残留、深色模式下多出一个停止胶囊”这类脏状态
-        val views = RemoteViews(
-            context.packageName,
-            if (active) R.layout.widget_timer_run else R.layout.widget_timer
-        )
+
+        // 状态切换一定换 layout id：布局不同会强制桌面重新 inflate，
+        // 彻底避免「隐藏过的按钮残留、深色下多出一个停止胶囊」这类脏状态
+        val layout = when {
+            large && active -> R.layout.widget_timer_run          // 2×2 运行
+            large -> R.layout.widget_timer                        // 2×2 空闲
+            active -> R.layout.widget_timer_small_run             // 2×1 运行
+            else -> R.layout.widget_timer_small                   // 2×1 空闲
+        }
+        val views = RemoteViews(context.packageName, layout)
 
         // ---- 尺寸 & 深色模式 ----
-        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 32f else 18f)
+        views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 32f else 20f)
         views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 13f else 12f)
         views.setTextViewTextSize(R.id.widget_sub, TypedValue.COMPLEX_UNIT_SP, if (large) 11f else 10f)
         views.setViewPadding(
             R.id.widget_root,
             dp(context, if (large) 16 else 12),
             dp(context, if (large) 14 else 6),
-            dp(context, if (large) 16 else 12),
+            dp(context, if (large) 16 else 10),
             dp(context, if (large) 14 else 6)
         )
         views.setInt(
@@ -171,11 +178,17 @@ class TimerWidgetProvider : AppWidgetProvider() {
         views.setTextColor(R.id.widget_time, if (night) 0xFFF2F2F2.toInt() else 0xFF1A1A1A.toInt())
         views.setTextColor(R.id.widget_sub, if (night) 0xFF808080.toInt() else 0xFFB3B3B3.toInt())
 
-        val showButtons = large
-        views.setViewVisibility(R.id.widget_sub, if (showButtons) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_action, if (showButtons) View.VISIBLE else View.GONE)
+        // 2×1 不显示 圆标/项目名/副标题，只留时长 + 胶囊
+        views.setViewVisibility(R.id.widget_badge, if (large) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_name, if (large) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_sub, if (large) View.VISIBLE else View.GONE)
+        // 2×1 计时中只给一个「停止」胶囊（暂停在 App 内 / 通知栏操作）；2×2 仍是暂停+停止
+        views.setViewVisibility(
+            R.id.widget_action,
+            if (active && !large) View.GONE else View.VISIBLE
+        )
         if (active) {
-            views.setViewVisibility(R.id.widget_stop, if (showButtons) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_stop, View.VISIBLE)
             views.setInt(
                 R.id.widget_stop, "setBackgroundResource",
                 if (night) R.drawable.pill_gray_dark else R.drawable.pill_gray_light
@@ -200,7 +213,7 @@ class TimerWidgetProvider : AppWidgetProvider() {
             setAction(views, R.drawable.ic_play, PILL_RES[colorIdx])
         } else if (active && running != null) {
             views.setTextViewText(R.id.widget_name, p.name)
-            // 数字由前台服务每秒刷新（不再用 Chronometer，避免字号/颜色改不动）
+            // 数字由前台服务刷新（不用 Chronometer：小米桌面不吃运行时改字号/颜色）
             views.setTextViewText(R.id.widget_time, Format.clock(Repo.elapsedMs(running)))
             views.setTextViewText(
                 R.id.widget_sub,
@@ -210,7 +223,6 @@ class TimerWidgetProvider : AppWidgetProvider() {
                     else -> "计划 " + running.plannedMinutes + " 分"
                 }
             )
-            // 深色模式：白底+深色图标；浅色模式：黑底+白色图标
             if (running.paused) {
                 setAction(
                     views,
@@ -227,24 +239,27 @@ class TimerWidgetProvider : AppWidgetProvider() {
         } else {
             views.setTextViewText(R.id.widget_name, p.name)
             val m = minutesFor(context, widgetId, p)
-            views.setTextViewText(R.id.widget_time, if (showButtons) "00:00" else m.toString() + " 分")
+            views.setTextViewText(R.id.widget_time, if (large) "00:00" else m.toString() + " 分")
             views.setTextViewText(R.id.widget_sub, "计划 " + m + " 分")
             setAction(views, R.drawable.ic_play, PILL_RES[colorIdx])
         }
 
-        val click = if (p == null) configIntent(context, widgetId) else toggleIntent(context, widgetId)
+        // 点空白处（时长/项目名）＝打开 App；没绑项目时＝去选项目
+        views.setOnClickPendingIntent(
+            R.id.widget_root,
+            if (p == null) configIntent(context, widgetId) else openAppIntent(context)
+        )
         val actionClick = when {
             p == null -> configIntent(context, widgetId)
             active -> pauseIntent(context, widgetId)
             else -> toggleIntent(context, widgetId)
         }
-        views.setOnClickPendingIntent(R.id.widget_root, click)
         views.setOnClickPendingIntent(R.id.widget_action, actionClick)
         if (active) views.setOnClickPendingIntent(R.id.widget_stop, stopIntent(context, widgetId))
         mgr.updateAppWidget(widgetId, views)
     }
 
-    /** 主胶囊只放图标（用户要求：不要“暂停/停止”文字） */
+    /** 主胶囊只放图标（不要“暂停/停止”文字） */
     private fun setAction(views: RemoteViews, iconRes: Int, bgRes: Int) {
         views.setImageViewResource(R.id.widget_action_icon, iconRes)
         views.setInt(R.id.widget_action, "setBackgroundResource", bgRes)
@@ -290,6 +305,16 @@ class TimerWidgetProvider : AppWidgetProvider() {
             500 + widgetId,
             Intent(context, WidgetConfigActivity::class.java)
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+    /** 点时长/项目名等空白处：打开 App 主页，不开始计时 */
+    private fun openAppIntent(context: Context): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            600,
+            Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
@@ -342,10 +367,26 @@ class TimerWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        /** 两种尺寸的小部件都刷新 */
         fun updateAll(context: Context) {
             val mgr = AppWidgetManager.getInstance(context) ?: return
-            val ids = mgr.getAppWidgetIds(ComponentName(context, TimerWidgetProvider::class.java))
-            TimerWidgetProvider().onUpdate(context, mgr, ids)
+            for (cls in listOf(TimerWidgetProvider::class.java, TimerWidget2Provider::class.java)) {
+                val ids = try {
+                    mgr.getAppWidgetIds(ComponentName(context, cls))
+                } catch (t: Throwable) {
+                    IntArray(0)
+                }
+                if (ids.isEmpty()) continue
+                val inst = try {
+                    cls.getDeclaredConstructor().newInstance()
+                } catch (t: Throwable) {
+                    null
+                } ?: continue
+                try {
+                    inst.onUpdate(context, mgr, ids)
+                } catch (t: Throwable) {
+                }
+            }
         }
 
         /** 计时状态变化时让所有小部件刷新 */
@@ -358,4 +399,9 @@ class TimerWidgetProvider : AppWidgetProvider() {
             }
         }
     }
+}
+
+/** 2×2 小部件：固定大号版式，桌面小部件面板里可直接选 */
+class TimerWidget2Provider : TimerWidgetProvider() {
+    override val forceLarge: Boolean = true
 }

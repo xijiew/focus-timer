@@ -50,7 +50,8 @@ fun HomeScreen(
     onOpen: (Long) -> Unit,
     onEdit: (Long) -> Unit,
     onNew: () -> Unit,
-    onBackup: () -> Unit
+    onBackup: () -> Unit,
+    onAbout: () -> Unit
 ) {
     val ctx = LocalContext.current
     val tick = rememberTicker(1000L)
@@ -87,7 +88,10 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("专注计时", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            TextButton(onClick = onBackup) { Text("自检 / 备份") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onAbout) { Text("关于") }
+                TextButton(onClick = onBackup) { Text("自检 / 备份") }
+            }
         }
 
         if (running != null) {

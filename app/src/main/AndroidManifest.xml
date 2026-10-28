@@ -65,5 +65,21 @@
                 android:resource="@xml/timer_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.TimerWidget2Provider"
+            android:exported="true"
+            android:label="@string/widget_label_2x2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.xijie.focustimer.WIDGET_TOGGLE" />
+                <action android:name="com.xijie.focustimer.STATE_CHANGED" />
+                <action android:name="com.xijie.focustimer.WIDGET_PAUSE" />
+                <action android:name="com.xijie.focustimer.WIDGET_STOP" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/timer_widget_2x2_info" />
+        </receiver>
+
     </application>
 </manifest>

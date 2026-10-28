@@ -193,9 +193,9 @@ class TimerService : Service() {
                 val screenOn = power?.isInteractive ?: true
                 if (!r.paused) {
                     if (screenOn) {
-                        // 亮屏：小部件数字每秒刷新（人看得见才刷）
+                        // 亮屏：小部件与通知的时长都每秒刷新（人看得见才刷）
                         TimerWidgetProvider.updateAll(this@TimerService)
-                        if (n % 30 == 0) safeNotify(r)
+                        safeNotify(r)
                     } else if (n % 30 == 0) {
                         // 息屏：只保留 30 秒一次的通知刷新（通知走系统 Chronometer）
                         safeNotify(r)

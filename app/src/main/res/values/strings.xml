@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">专注计时</string>
-    <string name="widget_label">专注计时</string>
+    <string name="widget_label">专注计时 · 2×1</string>
+    <string name="widget_label_2x2">专注计时 · 2×2</string>
 </resources>

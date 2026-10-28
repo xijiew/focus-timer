@@ -61,6 +61,8 @@ fun ProjectDetailScreen(
     var streak by remember { mutableIntStateOf(0) }
     var thisWeek by remember { mutableLongStateOf(0L) }
     var lastWeek by remember { mutableLongStateOf(0L) }
+    var checkinDays by remember { mutableIntStateOf(0) }
+    var totalAllMs by remember { mutableLongStateOf(0L) }
     var showStart by remember { mutableStateOf(false) }
 
     LaunchedEffect(projectId, version, tab, tick / 30) {
@@ -68,6 +70,8 @@ fun ProjectDetailScreen(
         loaded = true
         val all = Repo.sessionsOf(projectId)
         allCount = all.size
+        checkinDays = Stats.byDate(all).size
+        totalAllMs = Stats.sumMs(all)
         streak = Stats.streakDays(all)
         val ws = Stats.weekStart()
         val lws = Stats.weekStartOf(1)
@@ -182,6 +186,37 @@ fun ProjectDetailScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = if (weekDiff > 0) Color(0xFF2E7D32) else if (weekDiff < 0) Color(0xFFC62828) else Color(0xFF888888)
                     )
+                }
+            }
+        }
+
+        // ---- 总统计（全部时间，不随上面的周/月/年切换）----
+        Card(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                Text("总统计 · 全部时间", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("累计打卡", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            if (checkinDays > 0) checkinDays.toString() + " 天" else "还没开始",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = accent
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("累计时长", style = MaterialTheme.typography.labelMedium)
+                        Text(Format.duration(totalAllMs), style = MaterialTheme.typography.titleMedium)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("平均每天", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            Format.duration(if (checkinDays > 0) totalAllMs / checkinDays else 0L),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                 }
             }
         }

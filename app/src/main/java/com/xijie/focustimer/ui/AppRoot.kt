@@ -13,6 +13,7 @@ sealed class Screen {
     data class Edit(val projectId: Long) : Screen()
     data class Detail(val projectId: Long) : Screen()
     data object Backup : Screen()
+    data object About : Screen()
 }
 
 @Composable
@@ -43,7 +44,8 @@ fun AppRoot() {
             onOpen = { push(Screen.Detail(it)) },
             onEdit = { push(Screen.Edit(it)) },
             onNew = { push(Screen.Edit(0L)) },
-            onBackup = { push(Screen.Backup) }
+            onBackup = { push(Screen.Backup) },
+            onAbout = { push(Screen.About) }
         )
 
         is Screen.Edit -> ProjectEditScreen(
@@ -75,6 +77,13 @@ fun AppRoot() {
         )
 
         is Screen.Backup -> BackupScreen(
+            onBack = {
+                version++
+                pop()
+            }
+        )
+
+        is Screen.About -> AboutScreen(
             onBack = {
                 version++
                 pop()
