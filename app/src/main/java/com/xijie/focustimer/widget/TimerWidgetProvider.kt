@@ -161,7 +161,7 @@ open class TimerWidgetProvider : AppWidgetProvider() {
 
         // ---- 尺寸 & 深色模式 ----
         views.setTextViewTextSize(R.id.widget_time, TypedValue.COMPLEX_UNIT_SP, if (large) 32f else 20f)
-        views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 13f else 12f)
+        views.setTextViewTextSize(R.id.widget_name, TypedValue.COMPLEX_UNIT_SP, if (large) 13f else 10f)
         views.setTextViewTextSize(R.id.widget_sub, TypedValue.COMPLEX_UNIT_SP, if (large) 11f else 10f)
         views.setViewPadding(
             R.id.widget_root,
@@ -178,9 +178,9 @@ open class TimerWidgetProvider : AppWidgetProvider() {
         views.setTextColor(R.id.widget_time, if (night) 0xFFF2F2F2.toInt() else 0xFF1A1A1A.toInt())
         views.setTextColor(R.id.widget_sub, if (night) 0xFF808080.toInt() else 0xFFB3B3B3.toInt())
 
-        // 2×1 不显示 圆标/项目名/副标题，只留时长 + 胶囊
+        // 2×1 显示项目名（第一行）+ 时长/胶囊；2×2 额外显示圆标与计划副标题
         views.setViewVisibility(R.id.widget_badge, if (large) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_name, if (large) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_name, View.VISIBLE)
         views.setViewVisibility(R.id.widget_sub, if (large) View.VISIBLE else View.GONE)
         // 2×1 计时中只给一个「停止」胶囊（暂停在 App 内 / 通知栏操作）；2×2 仍是暂停+停止
         views.setViewVisibility(

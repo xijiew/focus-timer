@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 2x1 运行态：一行 = 实时时长 + 停止胶囊（2×1 不提供暂停，暂停在 App/通知栏操作） -->
+<!-- 2x1 计时中态：上行＝项目名，下行＝时长 + 停止胶囊（2×1 不提供暂停）（点空白处打开 App） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:paddingStart="12dp"
-    android:paddingTop="6dp"
-    android:paddingEnd="10dp"
-    android:paddingBottom="6dp">
+    android:paddingTop="4dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="4dp">
 
     <TextView
         android:id="@+id/widget_badge"
@@ -20,9 +19,13 @@
 
     <TextView
         android:id="@+id/widget_name"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone" />
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#7A7A7A"
+        android:textSize="10sp" />
 
     <TextView
         android:id="@+id/widget_sub"
@@ -30,49 +33,57 @@
         android:layout_height="0dp"
         android:visibility="gone" />
 
-    <TextView
-        android:id="@+id/widget_time"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
         android:layout_weight="1"
-        android:fontFamily="sans-serif-light"
-        android:gravity="start|center_vertical"
-        android:includeFontPadding="false"
-        android:letterSpacing="0.03"
-        android:maxLines="1"
-        android:textColor="#1A1A1A"
-        android:textSize="20sp" />
-
-    <LinearLayout
-        android:id="@+id/widget_action"
-        android:layout_width="40dp"
-        android:layout_height="32dp"
-        android:background="@drawable/pill_p0"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/widget_action_icon"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:contentDescription="@null"
-            android:src="@drawable/ic_play" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/widget_stop"
-        android:layout_width="52dp"
-        android:layout_height="32dp"
-        android:background="@drawable/pill_gray_light"
-        android:gravity="center"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/widget_stop_icon"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:contentDescription="@null"
-            android:src="@drawable/ic_stop_dark" />
+        <TextView
+            android:id="@+id/widget_time"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="sans-serif-light"
+            android:gravity="start|center_vertical"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.03"
+            android:maxLines="1"
+            android:textColor="#1A1A1A"
+            android:textSize="18sp" />
+
+        <LinearLayout
+            android:id="@+id/widget_action"
+            android:layout_width="40dp"
+            android:layout_height="30dp"
+            android:background="@drawable/pill_p0"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/widget_action_icon"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_play" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_stop"
+            android:layout_width="48dp"
+            android:layout_height="30dp"
+            android:background="@drawable/pill_gray_light"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/widget_stop_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_stop_dark" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

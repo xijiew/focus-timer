@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 
 /** 版本更新日志（新版本在最上面） */
 private val CHANGELOG: List<Pair<String, String>> = listOf(
+    "2.8" to "· 2×1 小部件第一行显示项目名，下面才是时长与按钮",
     "2.7" to "· 2×1 小部件计时中只保留「停止」胶囊，时长显示更宽松\n" +
         "· 2×1 运行态胶囊加大、字号回到 20sp",
     "2.6" to "· 新增独立的 2×2 小部件，桌面小部件面板可直接选，不用再手动拉大\n" +
