@@ -3,6 +3,11 @@ name: build-apk
 on:
   push:
     branches: [ main, master ]
+    # 纯文档/协议改动不触发编译（省得 Actions 列表里全是无意义构建）
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
 
 jobs:

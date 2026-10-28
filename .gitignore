@@ -1,0 +1,20 @@
+# Gradle / Android 构建产物与本地配置（公开仓库必须挡住这些）
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 产物
+out/
+*.apk
+*.aab
+build.log
+
+# 说明：keystore.p12 目前是公开的自用 debug 签名（见 README「签名」一节）。
+# 如果以后改用 GitHub Secrets 存放签名，把那行取消注释、并把文件从仓库删除。
+# keystore.p12
