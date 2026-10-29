@@ -114,12 +114,9 @@ fun ProjectDetailScreen(
         else -> Stats.yearBars(sessions)
     }
     val total = Stats.sumMs(sessions)
-    val days = when (tab) {
-        0 -> 7
-        1 -> LocalDate.now().dayOfMonth
-        else -> LocalDate.now().dayOfYear
-    }
-    val avg = if (days <= 0) 0L else total / days
+    // 日均＝该期间合计 ÷ 该期间「实际有专注的天数」（用户 2026-10-29 定：不用 7／30／365 做分母）
+    val activeDays = Stats.byDate(sessions).size
+    val avg = if (activeDays <= 0) 0L else total / activeDays
     val periodLabel = when (tab) {
         0 -> "本周"
         1 -> "本月"
@@ -257,7 +254,7 @@ fun ProjectDetailScreen(
                     Text(Format.duration(total), style = MaterialTheme.typography.titleLarge, color = accent)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("日均", style = MaterialTheme.typography.labelMedium)
+                    Text("日均 · " + activeDays + " 天", style = MaterialTheme.typography.labelMedium)
                     Text(Format.duration(avg), style = MaterialTheme.typography.titleMedium)
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -271,7 +268,7 @@ fun ProjectDetailScreen(
             bars = bars,
             color = accent,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            showValues = tab == 0,
+            showValues = tab == 0 || tab == 2,
             selectedIndex = sel,
             onBarClick = { i -> sel = if (sel == i) null else i }
         )

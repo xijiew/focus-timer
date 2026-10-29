@@ -112,10 +112,12 @@ fun BarChart(
                 if (showValues && b.millis > 0L) {
                     val txt = Format.durationShort(b.millis)
                     if (txt.isNotEmpty()) {
+                        // 年视图 12 根柱子更窄，字号再收一档，避免数字挤在一起
+                        val valueSize = if (n > 8) 7.5.sp else 9.sp
                         val laid = measurer.measure(
                             text = txt,
                             style = TextStyle(
-                                fontSize = 9.sp,
+                                fontSize = valueSize,
                                 color = if (selectedIndex == i) color else Color(0xFF888888)
                             )
                         )
