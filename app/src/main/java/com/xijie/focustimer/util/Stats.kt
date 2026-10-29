@@ -61,7 +61,7 @@ object Stats {
         return map
     }
 
-    data class Bar(val label: String, val millis: Long)
+    data class Bar(val label: String, val millis: Long, val date: LocalDate? = null)
 
     fun weekBars(list: List<FocusSession>): List<Bar> {
         val start = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -69,7 +69,7 @@ object Stats {
         val names = arrayOf("一", "二", "三", "四", "五", "六", "日")
         return (0..6).map { i ->
             val d = start.plusDays(i.toLong())
-            Bar(names[i], map[d] ?: 0L)
+            Bar(names[i], map[d] ?: 0L, d)
         }
     }
 
@@ -79,7 +79,7 @@ object Stats {
         val map = byDate(list)
         return (1..ym.lengthOfMonth()).map { day ->
             val d = ym.atDay(day)
-            Bar(if (day % 5 == 0 || day == 1) day.toString() else "", map[d] ?: 0L)
+            Bar(if (day % 5 == 0 || day == 1) day.toString() else "", map[d] ?: 0L, d)
         }
     }
 
@@ -91,5 +91,16 @@ object Stats {
             if (d.year == year) byMonth[d.monthValue - 1] += s.durationMs
         }
         return (1..12).map { m -> Bar("${m}月", byMonth[m - 1]) }
+    }
+
+    fun dateOf(ts: Long): LocalDate = Instant.ofEpochMilli(ts).atZone(zone).toLocalDate()
+
+    /** 某月里每一天的合计（只保留有记录的日期，按日期升序）——年视图点柱子后的明细用 */
+    fun dayTotalsInMonth(list: List<FocusSession>, month: Int): List<Pair<LocalDate, Long>> {
+        val year = LocalDate.now(zone).year
+        return byDate(list)
+            .filter { (d, v) -> d.year == year && d.monthValue == month && v > 0L }
+            .entries.sortedBy { it.key }
+            .map { it.key to it.value }
     }
 }

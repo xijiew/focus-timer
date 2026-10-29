@@ -70,7 +70,7 @@ class TimerService : Service() {
                 if (pid > 0L && minutes > 0) begin(pid, minutes) else stopSelf()
             }
             ACTION_STOP -> {
-                finish()
+                finish(intent.getBooleanExtra(EXTRA_DISCARD, false))
                 return START_NOT_STICKY
             }
             ACTION_PAUSE -> {
@@ -215,7 +215,15 @@ class TimerService : Service() {
     }
 
     private fun saveAndClear(r: Repo.Running): Long {
-        val end = r.startWall + Repo.elapsedMs(r)
+        val elapsed = Repo.elapsedMs(r)
+        // 不满 3 分钟：一律不保存——不落库、不累计、明细里也没有。
+        // 1 分 30 秒以下本来就是手误；1 分 30 秒~3 分钟在 App 里会先弹窗问一次，
+        // 小部件/通知栏没有界面问不了，就统一按"不记录"处理。
+        if (elapsed < Repo.MIN_SAVE_MS) {
+            Repo.clearRunning()
+            return -1L
+        }
+        val end = r.startWall + elapsed
         val id = Repo.addSession(
             FocusSession(
                 projectId = r.projectId,
@@ -229,12 +237,12 @@ class TimerService : Service() {
         return id
     }
 
-    private fun finish() {
+    private fun finish(discard: Boolean = false) {
         val r = Repo.running()
         if (r != null) {
-            saveAndClear(r)
+            if (discard) Repo.clearRunning() else saveAndClear(r)
             cancelChime()
-            Notifier.checkThresholds(this, r.projectId)
+            if (!discard) Notifier.checkThresholds(this, r.projectId)
         }
         ticker?.cancel()
         refreshWidgets()
@@ -312,6 +320,7 @@ class TimerService : Service() {
         const val ACTION_RESUME = "com.xijie.focustimer.action.RESUME"
         const val EXTRA_PROJECT_ID = "project_id"
         const val EXTRA_MINUTES = "minutes"
+        const val EXTRA_DISCARD = "discard"
         private const val REQ_CHIME = 9001
         private const val REQ_SHOW = 9002
 
@@ -343,6 +352,21 @@ class TimerService : Service() {
 
         fun stop(ctx: Context) {
             val i = Intent(ctx, TimerService::class.java).setAction(ACTION_STOP)
+            try {
+                ctx.startService(i)
+            } catch (t: Throwable) {
+                try {
+                    ContextCompat.startForegroundService(ctx, i)
+                } catch (t2: Throwable) {
+                }
+            }
+        }
+
+        /** 停止且丢弃这一次（2～5 分钟里选了"放弃"时用） */
+        fun stopDiscard(ctx: Context) {
+            val i = Intent(ctx, TimerService::class.java)
+                .setAction(ACTION_STOP)
+                .putExtra(EXTRA_DISCARD, true)
             try {
                 ctx.startService(i)
             } catch (t: Throwable) {

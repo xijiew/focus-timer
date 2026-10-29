@@ -94,6 +94,16 @@ object Repo {
         return r.accumMs + seg
     }
 
+    // ---------- 保存门槛（2026-10-29 第二次修订）----------
+    /** 1 分 30 秒以下：当手误，直接丢弃、不弹提示——不落库、不累计、明细不显示 */
+    const val DISCARD_UNDER_MS = 90_000L
+
+    /** 1 分 30 秒 ~ 3 分钟：App 内点停止时先弹窗问「真要放弃吗」 */
+    const val CONFIRM_UNDER_MS = 180_000L
+
+    /** 保存下限：不满 3 分钟一律不保存。小部件/通知栏没法弹窗，靠这条让所有入口口径一致 */
+    const val MIN_SAVE_MS = 180_000L
+
     // ---------- 提醒去重 ----------
     fun warned(key: String): Boolean = prefs.getBoolean("warn_$key", false)
     fun markWarned(key: String) {

@@ -64,6 +64,11 @@ fun ProjectDetailScreen(
     var checkinDays by remember { mutableIntStateOf(0) }
     var totalAllMs by remember { mutableLongStateOf(0L) }
     var showStart by remember { mutableStateOf(false) }
+    // 点柱状图后的筛选下标（null＝不筛选）
+    var sel by remember { mutableStateOf<Int?>(null) }
+
+    // 切换周／月／年时清掉筛选
+    LaunchedEffect(tab) { sel = null }
 
     LaunchedEffect(projectId, version, tab, tick / 30) {
         project = Repo.project(projectId)
@@ -97,6 +102,11 @@ fun ProjectDetailScreen(
 
     val running = Repo.running()
     val isRunning = running != null && running.projectId == p.id
+    // 停止把关：<2 分直接丢、2~5 分弹窗确认、≥5 分直接存
+    val stopGate = rememberStopGate(
+        onSave = { TimerService.stop(ctx) },
+        onDiscard = { TimerService.stopDiscard(ctx) }
+    )
     val accent = if (p.color == 0) MaterialTheme.colorScheme.primary else Color(p.color)
     val bars = when (tab) {
         0 -> Stats.weekBars(sessions)
@@ -118,6 +128,19 @@ fun ProjectDetailScreen(
     val weekDiff = thisWeek - lastWeek
     val weekDiffPct = if (lastWeek <= 0L) -1 else ((weekDiff * 100.0) / lastWeek).toInt()
 
+    // ---- 点柱状图后的联动筛选：周/月＝看某一天，年＝看某个月（按天合计）----
+    val selBar = sel
+    val selDate: LocalDate? = if (selBar == null) null else bars.getOrNull(selBar)?.date
+    val selMonth: Int? = if (tab == 2 && selBar != null) selBar + 1 else null
+    val detailSessions =
+        if (selDate != null) sessions.filter { Stats.dateOf(it.startAt) == selDate } else sessions
+    val dayTotals = if (selMonth != null) Stats.dayTotalsInMonth(sessions, selMonth) else emptyList()
+    val detailTitle = when {
+        selDate != null -> "明细 · 只看 " + selDate.monthValue + "月" + selDate.dayOfMonth + "日（再点一次柱子取消）"
+        selMonth != null -> "明细 · " + selMonth + "月每天的合计（再点一次柱子取消）"
+        else -> "明细"
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -135,7 +158,7 @@ fun ProjectDetailScreen(
                 TextButton(onClick = {
                     if (running.paused) TimerService.resume(ctx) else TimerService.pause(ctx)
                 }) { Text(if (running.paused) "继续" else "暂停") }
-                Button(onClick = { TimerService.stop(ctx) }) { Text("停止") }
+                Button(onClick = { stopGate() }) { Text("停止") }
             } else {
                 Button(onClick = { showStart = true }) { Text("开始") }
             }
@@ -244,28 +267,73 @@ fun ProjectDetailScreen(
             }
         }
 
-        BarChart(bars = bars, color = accent, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+        BarChart(
+            bars = bars,
+            color = accent,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            showValues = tab == 0,
+            selectedIndex = sel,
+            onBarClick = { i -> sel = if (sel == i) null else i }
+        )
 
-        Text("明细", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+        Text(detailTitle, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(sessions) { s ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+            if (selMonth != null) {
+                // 年视图点了某个月：只显示按天合计（不显示具体时段）
+                if (dayTotals.isEmpty()) {
+                    item {
                         Text(
-                            Format.fullDate(s.startAt) + "  " + Format.time(s.startAt) + " - " + Format.time(s.endAt),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            "计划 " + s.plannedMinutes + " 分钟" + (if (s.chimeFired) " · 已提示" else " · 未到点"),
+                            "这个月还没有记录",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888)
+                            color = Color(0xFF888888),
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    Text(Format.duration(s.durationMs), style = MaterialTheme.typography.titleSmall, color = accent)
+                }
+                items(dayTotals) { pair ->
+                    val (d, ms) = pair
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            d.monthValue.toString() + "月" + d.dayOfMonth + "日",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(Format.duration(ms), style = MaterialTheme.typography.titleSmall, color = accent)
+                    }
+                }
+            } else {
+                if (detailSessions.isEmpty()) {
+                    item {
+                        Text(
+                            "这段时间还没有记录",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                }
+                items(detailSessions) { s ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                Format.fullDate(s.startAt) + "  " + Format.time(s.startAt) + " - " + Format.time(s.endAt),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "计划 " + s.plannedMinutes + " 分钟" + (if (s.chimeFired) " · 已提示" else " · 未到点"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF888888)
+                            )
+                        }
+                        Text(Format.duration(s.durationMs), style = MaterialTheme.typography.titleSmall, color = accent)
+                    }
                 }
             }
             item { Spacer(Modifier.height(12.dp)) }

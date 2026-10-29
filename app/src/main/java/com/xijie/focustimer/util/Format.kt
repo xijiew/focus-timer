@@ -34,6 +34,19 @@ object Format {
         }
     }
 
+    /** 柱状图柱顶的极短写法：45m / 1h20 / 2h（无记录返回空串，不显示） */
+    fun durationShort(ms: Long): String {
+        val totalMin = ms / 60000
+        if (ms <= 0L || totalMin <= 0) return ""
+        val h = totalMin / 60
+        val m = totalMin % 60
+        return when {
+            h > 0 && m > 0 -> "${h}h${m}"
+            h > 0 -> "${h}h"
+            else -> "${m}m"
+        }
+    }
+
     fun minutes(ms: Long): Double = ms / 60000.0
 
     fun time(ts: Long): String = Instant.ofEpochMilli(ts).atZone(zone).format(hm)

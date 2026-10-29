@@ -79,6 +79,11 @@ fun HomeScreen(
     }
 
     val running = Repo.running()
+    // 停止把关：<2 分直接丢、2~5 分弹窗确认、≥5 分直接存
+    val stopGate = rememberStopGate(
+        onSave = { TimerService.stop(ctx) },
+        onDiscard = { TimerService.stopDiscard(ctx) }
+    )
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(16.dp))
@@ -113,7 +118,7 @@ fun HomeScreen(
                             if (running.paused) TimerService.resume(ctx) else TimerService.pause(ctx)
                         }) { Text(if (running.paused) "继续" else "暂停") }
                         Spacer(Modifier.width(8.dp))
-                        Button(onClick = { TimerService.stop(ctx) }) { Text("停止并保存") }
+                        Button(onClick = { stopGate() }) { Text("停止") }
                     }
                 }
             }
@@ -153,7 +158,7 @@ fun HomeScreen(
                     running = running != null && running.projectId == p.id,
                     onClick = { onOpen(p.id) },
                     onStart = { startTarget = p },
-                    onStop = { TimerService.stop(ctx) },
+                    onStop = { stopGate() },
                     onLongClick = { menuTarget = p }
                 )
             }
