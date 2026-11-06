@@ -35,6 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextAlign
+import java.time.YearMonth
 import androidx.compose.ui.unit.dp
 import com.xijie.focustimer.data.FocusSession
 import com.xijie.focustimer.data.Project
@@ -66,11 +70,14 @@ fun ProjectDetailScreen(
     var showStart by remember { mutableStateOf(false) }
     // 点柱状图后的筛选下标（null＝不筛选）
     var sel by remember { mutableStateOf<Int?>(null) }
+    // 往前翻的周期数：0＝当前周期（本周/本月/本年），1＝上一个周期…
+    // 用 remember（不带 saveable）——离开这个页面状态即丢弃，再进来自动回到当前周期
+    var offset by remember { mutableIntStateOf(0) }
 
-    // 切换周／月／年时清掉筛选
-    LaunchedEffect(tab) { sel = null }
+    // 切换周／月／年、或翻到别的周期时清掉柱子筛选
+    LaunchedEffect(tab, offset) { sel = null }
 
-    LaunchedEffect(projectId, version, tab, tick / 30) {
+    LaunchedEffect(projectId, version, tab, offset, tick / 30) {
         project = Repo.project(projectId)
         loaded = true
         val all = Repo.sessionsOf(projectId)
@@ -83,12 +90,12 @@ fun ProjectDetailScreen(
         val now = System.currentTimeMillis() + 1
         thisWeek = Stats.sumMs(all.filter { it.startAt >= ws && it.startAt < now })
         lastWeek = Stats.sumMs(all.filter { it.startAt >= lws && it.startAt < ws })
-        val from = when (tab) {
-            0 -> ws
-            1 -> Stats.monthStart()
-            else -> Stats.yearStart()
+        val (from, to) = when (tab) {
+            0 -> Stats.weekRange(offset)
+            1 -> Stats.monthRange(offset)
+            else -> Stats.yearRange(offset)
         }
-        sessions = all.filter { it.startAt >= from }
+        sessions = all.filter { it.startAt >= from && it.startAt < to }
     }
 
     val p = project
@@ -109,18 +116,32 @@ fun ProjectDetailScreen(
     )
     val accent = if (p.color == 0) MaterialTheme.colorScheme.primary else Color(p.color)
     val bars = when (tab) {
-        0 -> Stats.weekBars(sessions)
-        1 -> Stats.monthBars(sessions)
-        else -> Stats.yearBars(sessions)
+        0 -> Stats.weekBars(sessions, offset)
+        1 -> Stats.monthBars(sessions, offset)
+        else -> Stats.yearBars(sessions, offset)
     }
     val total = Stats.sumMs(sessions)
     // 日均＝该期间合计 ÷ 该期间「实际有专注的天数」（用户 2026-10-29 定：不用 7／30／365 做分母）
     val activeDays = Stats.byDate(sessions).size
     val avg = if (activeDays <= 0) 0L else total / activeDays
     val periodLabel = when (tab) {
-        0 -> "本周"
-        1 -> "本月"
-        else -> "本年"
+        0 -> if (offset == 0) "本周" else if (offset == 1) "上周" else offset.toString() + "周前"
+        1 -> if (offset == 0) "本月" else if (offset == 1) "上个月" else offset.toString() + "个月前"
+        else -> if (offset == 0) "本年" else if (offset == 1) "去年" else offset.toString() + "年前"
+    }
+    // 具体到日期／年月的标题，翻页时能看清在看哪一段时间
+    val periodTitle = when (tab) {
+        0 -> {
+            val start = Stats.dateOf(Stats.weekStartOf(offset))
+            val end = start.plusDays(6)
+            periodLabel + " · " + start.monthValue + "." + start.dayOfMonth +
+                "–" + end.monthValue + "." + end.dayOfMonth
+        }
+        1 -> {
+            val ym = YearMonth.from(LocalDate.now()).minusMonths(offset.toLong())
+            periodLabel + " · " + ym.year + "年" + ym.monthValue + "月"
+        }
+        else -> periodLabel + " · " + (LocalDate.now().year - offset) + "年"
     }
     val weekDiff = thisWeek - lastWeek
     val weekDiffPct = if (lastWeek <= 0L) -1 else ((weekDiff * 100.0) / lastWeek).toInt()
@@ -131,7 +152,7 @@ fun ProjectDetailScreen(
     val selMonth: Int? = if (tab == 2 && selBar != null) selBar + 1 else null
     val detailSessions =
         if (selDate != null) sessions.filter { Stats.dateOf(it.startAt) == selDate } else sessions
-    val dayTotals = if (selMonth != null) Stats.dayTotalsInMonth(sessions, selMonth) else emptyList()
+    val dayTotals = if (selMonth != null) Stats.dayTotalsInMonth(sessions, selMonth, if (tab == 2) offset else 0) else emptyList()
     val detailTitle = when {
         selDate != null -> "明细 · 只看 " + selDate.monthValue + "月" + selDate.dayOfMonth + "日（再点一次柱子取消）"
         selMonth != null -> "明细 · " + selMonth + "月每天的合计（再点一次柱子取消）"
@@ -264,10 +285,41 @@ fun ProjectDetailScreen(
             }
         }
 
+        // 周期标题：右边箭头在当期时变灰（下一个周期还没到）
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { offset++ }) { Text("‹ 上一个") }
+            Text(
+                periodTitle,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                color = accent,
+                textAlign = TextAlign.Center
+            )
+            TextButton(onClick = { if (offset > 0) offset-- }, enabled = offset > 0) {
+                Text("下一个 ›", color = if (offset > 0) MaterialTheme.colorScheme.primary else Color(0xFFAAAAAA))
+            }
+        }
+
+        // 柱状图：往右滑＝上一个周期，往左滑＝下一个周期（已在当前周期时往左滑无效）
+        var dragX by remember { mutableStateOf(0f) }
         BarChart(
             bars = bars,
             color = accent,
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth().pointerInput(tab, offset) {
+                val threshold = 60.dp.toPx()
+                detectHorizontalDragGestures(
+                    onDragStart = { dragX = 0f },
+                    onDragEnd = {
+                        if (dragX > threshold) offset++
+                        else if (dragX < -threshold && offset > 0) offset--
+                        dragX = 0f
+                    },
+                    onHorizontalDrag = { _, dx -> dragX += dx }
+                )
+            },
             showValues = tab == 0 || tab == 2,
             selectedIndex = sel,
             onBarClick = { i -> sel = if (sel == i) null else i }

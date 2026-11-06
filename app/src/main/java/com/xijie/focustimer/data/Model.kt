@@ -24,6 +24,12 @@ data class Project(
             "muyu" -> "木鱼"
             "qing" -> "磬"
             "beep" -> "哔"
+            "drop1" -> "水滴1"
+            "drop2" -> "水滴2"
+            "bird1" -> "鸟鸣1"
+            "bird2" -> "鸟鸣2"
+            "drop" -> "水滴1"
+            "bird" -> "鸟鸣1"
             "custom" -> "自定义"
             else -> "关闭"
         }

@@ -34,6 +34,26 @@ object Stats {
             .minusWeeks(offsetWeeks.toLong())
             .atStartOfDay(zone).toInstant().toEpochMilli()
 
+    /** 某个相对周的区间 [start, end)：offsetWeeks=0 本周，1 上周 */
+    fun weekRange(offsetWeeks: Int): Pair<Long, Long> =
+        weekStartOf(offsetWeeks) to weekStartOf(offsetWeeks - 1)
+
+    /** 某个相对月的区间 [start, end)：offsetMonths=0 本月，1 上个月 */
+    fun monthStartOf(offsetMonths: Int): Long =
+        YearMonth.from(LocalDate.now(zone)).minusMonths(offsetMonths.toLong())
+            .atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+    fun monthRange(offsetMonths: Int): Pair<Long, Long> =
+        monthStartOf(offsetMonths) to monthStartOf(offsetMonths - 1)
+
+    /** 某个相对年的区间 [start, end)：offsetYears=0 本年，1 去年 */
+    fun yearStartOf(offsetYears: Int): Long =
+        LocalDate.now(zone).withDayOfYear(1).minusYears(offsetYears.toLong())
+            .atStartOfDay(zone).toInstant().toEpochMilli()
+
+    fun yearRange(offsetYears: Int): Pair<Long, Long> =
+        yearStartOf(offsetYears) to yearStartOf(offsetYears - 1)
+
     /** 连续打卡天数：今天或昨天有记录才算在连着；没有记录返回 0 */
     fun streakDays(sessions: List<FocusSession>): Int {
         val days = byDate(sessions).keys
@@ -63,8 +83,9 @@ object Stats {
 
     data class Bar(val label: String, val millis: Long, val date: LocalDate? = null)
 
-    fun weekBars(list: List<FocusSession>): List<Bar> {
+    fun weekBars(list: List<FocusSession>, offsetWeeks: Int = 0): List<Bar> {
         val start = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .minusWeeks(offsetWeeks.toLong())
         val map = byDate(list)
         val names = arrayOf("一", "二", "三", "四", "五", "六", "日")
         return (0..6).map { i ->
@@ -73,9 +94,9 @@ object Stats {
         }
     }
 
-    fun monthBars(list: List<FocusSession>): List<Bar> {
+    fun monthBars(list: List<FocusSession>, offsetMonths: Int = 0): List<Bar> {
         val today = LocalDate.now(zone)
-        val ym = YearMonth.from(today)
+        val ym = YearMonth.from(today).minusMonths(offsetMonths.toLong())
         val map = byDate(list)
         return (1..ym.lengthOfMonth()).map { day ->
             val d = ym.atDay(day)
@@ -83,8 +104,8 @@ object Stats {
         }
     }
 
-    fun yearBars(list: List<FocusSession>): List<Bar> {
-        val year = LocalDate.now(zone).year
+    fun yearBars(list: List<FocusSession>, offsetYears: Int = 0): List<Bar> {
+        val year = LocalDate.now(zone).year - offsetYears
         val byMonth = LongArray(12)
         list.forEach { s ->
             val d = Instant.ofEpochMilli(s.startAt).atZone(zone).toLocalDate()
@@ -96,8 +117,8 @@ object Stats {
     fun dateOf(ts: Long): LocalDate = Instant.ofEpochMilli(ts).atZone(zone).toLocalDate()
 
     /** 某月里每一天的合计（只保留有记录的日期，按日期升序）——年视图点柱子后的明细用 */
-    fun dayTotalsInMonth(list: List<FocusSession>, month: Int): List<Pair<LocalDate, Long>> {
-        val year = LocalDate.now(zone).year
+    fun dayTotalsInMonth(list: List<FocusSession>, month: Int, offsetYears: Int = 0): List<Pair<LocalDate, Long>> {
+        val year = LocalDate.now(zone).year - offsetYears
         return byDate(list)
             .filter { (d, v) -> d.year == year && d.monthValue == month && v > 0L }
             .entries.sortedBy { it.key }

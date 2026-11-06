@@ -143,6 +143,12 @@ fun ProjectEditScreen(
             SoundButton("哔", sound == "beep") { sound = "beep" }
         }
         Row(modifier = Modifier.padding(top = 6.dp)) {
+            SoundButton("水滴1", sound == "drop1") { sound = "drop1" }
+            SoundButton("水滴2", sound == "drop2") { sound = "drop2" }
+            SoundButton("鸟鸣1", sound == "bird1") { sound = "bird1" }
+        }
+        Row(modifier = Modifier.padding(top = 6.dp)) {
+            SoundButton("鸟鸣2", sound == "bird2") { sound = "bird2" }
             SoundButton("自定义", sound == "custom") { sound = "custom" }
             SoundButton("关闭", sound == "none") { sound = "none" }
         }

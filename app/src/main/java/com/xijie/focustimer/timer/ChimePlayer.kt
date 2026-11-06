@@ -15,6 +15,13 @@ object ChimePlayer {
         "muyu" -> R.raw.chime_muyu
         "qing" -> R.raw.chime_qing
         "beep" -> R.raw.chime_beep
+        "drop1" -> R.raw.chime_drop1
+        "drop2" -> R.raw.chime_drop2
+        "bird1" -> R.raw.chime_bird1
+        "bird2" -> R.raw.chime_bird2
+        // 兼容 2.11 存过的旧 key（当时合成音效），映射到新的第一个版本
+        "drop" -> R.raw.chime_drop1
+        "bird" -> R.raw.chime_bird1
         else -> 0
     }
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 提示音全部由代码以 R.raw.* 静态引用，shrinkResources 本就会保留；
+     这里显式声明一遍，防止以后改成按名查找时被资源压缩误删。 -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/chime_*" />
